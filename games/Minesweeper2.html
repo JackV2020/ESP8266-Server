@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Two-Player Minesweeper</title>
+    <style>
+        /* CSS styles for the game */
+        #gameBoard {
+            margin: 20px;
+            border-collapse: collapse;
+        }
+        #gameBoard td {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        #controlPanel {
+            margin: 20px;
+        }
+        #status {
+            font-size: 20px;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Two-Player Minesweeper</h1>
+
+    <div id="controlPanel">
+        <h2>Controls:</h2>
+        <div>
+            <label for="boardSize">Board Size:</label>
+            <select id="boardSize">
+                <option value="8,8">Small (8x8)</option>
+                <option value="10,10">Medium (10x10)</option>
+                <option value="12,12">Large (12x12)</option>
+            </select>
+        </div>
+        <div>
+            <label for="minesCount">Number of Mines:</label>
+            <select id="minesCount">
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+            </select>
+        </div>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="status"></div>
+
+    <table id="gameBoard"></table>
+
+    <script>
+        // Variables for the game state
+        let rows = 8;
+        let cols = 8;
+        let mines = 10;
+        let board = [];
+        let currentPlayer = 1;
+        let gameOver = false;
+
+        // Function to initialize the game
+        function initializeGame() {
+            board = [];
+            gameOver = false;
+            currentPlayer = 1;
+            document.getElementById("status").textContent = `Player ${currentPlayer}'s turn`;
+
+            for (let r = 0; r < rows; r++) {
+                board[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    board[r][c] = {
+                        mine: false,
+                        revealed: false,
+                        flagged: false,
+                        neighborMines: 0
+                    };
+                }
+            }
+
+            // Place mines and calculate neighbor mines
+            placeMines();
+            calculateNeighborMines();
+            renderBoard();
+        }
+
+        // Function to place mines randomly on the board
+        function placeMines() {
+            let placedMines = 0;
+            while (placedMines < mines) {
+                const row = Math.floor(Math.random() * rows);
+                const col = Math.floor(Math.random() * cols);
+                if (!board[row][col].mine) {
+                    board[row][col].mine = true;
+                    placedMines++;
+                }
+            }
+        }
+
+        // Function to calculate the number of neighbor mines for each cell
+        function calculateNeighborMines() {
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1], [0, 1],
+                [1, -1], [1, 0], [1, 1],
+            ];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let count = 0;
+                    directions.forEach(([dr, dc]) => {
+                        const newRow = r + dr;
+                        const newCol = c + dc;
+                        if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+                            if (board[newRow][newCol].mine) {
+                                count++;
+                            }
+                        }
+                    });
+                    board[r][c].neighborMines = count;
+                }
+            }
+        }
+
+        // Function to render the game board
+        function renderBoard() {
+            const gameBoard = document.getElementById("gameBoard");
+            gameBoard.innerHTML = ""; // Clear the board
+
+            for (let r = 0; r < rows; r++) {
+                const row = document.createElement("tr");
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement("td");
+                    const boardCell = board[r][c];
+
+                    if (boardCell.revealed) {
+                        if (boardCell.mine) {
+                            cell.textContent = "@"; // Display mine
+                            cell.style.backgroundColor = "red";
+                        } else {
+                            cell.textContent = boardCell.neighborMines > 0 ? boardCell.neighborMines : ""; // Display neighbor mines count
+                        }
+                    } else {
+                        if (boardCell.flagged) {
+                            cell.textContent = "#"; // Display flag
+                        }
+                    }
+
+                    // Add event listeners for cell interaction
+                    cell.addEventListener("click", () => handleCellClick(r, c, false));
+                    cell.addEventListener("contextmenu", (e) => {
+                        e.preventDefault(); // Prevent context menu
+                        handleCellClick(r, c, true);
+                    });
+                    row.appendChild(cell);
+                }
+                gameBoard.appendChild(row);
+            }
+        }
+
+        // Function to handle cell interaction
+        function handleCellClick(row, col, isMarking) {
+            if (gameOver) {
+                return;
+            }
+            const cell = board[row][col];
+
+            if (isMarking) {
+                // Mark or unmark the cell
+                cell.flagged = !cell.flagged;
+                renderBoard();
+            } else {
+                // Reveal the cell
+                if (!cell.revealed && !cell.flagged) {
+                    cell.revealed = true;
+                    if (cell.mine) {
+                        // If mine, the player who clicked loses
+                        gameOver = true;
+                        document.getElementById("status").textContent = `Player ${currentPlayer} loses!`;
+                        renderBoard();
+                    } else {
+                        // If no mine, reveal adjacent cells if neighbor mines are zero
+                        if (cell.neighborMines === 0) {
+                            revealAdjacentCells(row, col);
+                        }
+                        renderBoard();
+
+                        // Check win condition
+                        if (checkWin()) {
+                            gameOver = true;
+                            document.getElementById("status").textContent = `Player ${currentPlayer} wins!`;
+                        } else {
+                            // Switch players
+                            currentPlayer = currentPlayer === 1 ? 2 : 1;
+                            document.getElementById("status").textContent = `Player ${currentPlayer}'s turn`;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Function to reveal adjacent cells
+        function revealAdjacentCells(row, col) {
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1], [0, 1],
+                [1, -1], [1, 0], [1, 1],
+            ];
+            directions.forEach(([dr, dc]) => {
+                const newRow = row + dr;
+                const newCol = col + dc;
+                if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+                    const adjCell = board[newRow][newCol];
+                    if (!adjCell.revealed && !adjCell.flagged) {
+                        adjCell.revealed = true;
+                        if (adjCell.neighborMines === 0) {
+                            revealAdjacentCells(newRow, newCol);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to check if a player wins
+        function checkWin() {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = board[r][c];
+                    if (!cell.mine && !cell.revealed) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // Function to start a new game based on user selection
+        function startGame() {
+            // Get the selected board size and number of mines
+            const selectedSize = document.getElementById("boardSize").value.split(",");
+            rows = parseInt(selectedSize[0]);
+            cols = parseInt(selectedSize[1]);
+            mines = parseInt(document.getElementById("minesCount").value);
+
+            // Initialize the game and render the board
+            initializeGame();
+        }
+
+        // Start the game when the page loads
+        startGame();
+    </script>
+</body>
+</html>

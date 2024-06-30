@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5x5 Puzzle Game</title>
+    <style>
+        /* Styling for the game container */
+        #gameContainer {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            width: 250px;
+            height: 250px;
+            margin: 20px auto;
+            border: 2px solid #000;
+            box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Styling for each tile */
+        .tile {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            background-color: #ccc;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid #000;
+        }
+
+        /* Empty tile (blank space) */
+        .empty {
+            background-color: white;
+        }
+
+        /* Styling for the start button */
+        #startButton {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Hover effect for the start button */
+        #startButton:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Start button -->
+    <button id="startButton">Start</button>
+
+    <!-- Game container -->
+    <div id="gameContainer"></div>
+
+    <script>
+        // Create a game container
+        const gameContainer = document.getElementById('gameContainer');
+
+        // Define the initial board state
+        const initialBoard = [
+            1, 2, 3, 4, 5,
+            6, 7, 8, 9, 10,
+            11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20,
+            21, 22, 23, 24, 0 // 0 represents the empty tile
+        ];
+
+        // Create an array to store the current board state
+        let boardState = [...initialBoard];
+
+        // Function to initialize the board
+        function initializeBoard() {
+            gameContainer.innerHTML = ''; // Clear the game container
+            boardState.forEach((value, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.dataset.index = index;
+
+                if (value === 0) {
+                    tile.classList.add('empty');
+                } else {
+                    tile.innerText = value;
+                }
+
+                tile.addEventListener('click', handleTileClick);
+
+                gameContainer.appendChild(tile);
+            });
+        }
+
+        // Function to handle tile clicks
+        function handleTileClick(event) {
+            const clickedTile = event.target;
+            const clickedIndex = parseInt(clickedTile.dataset.index);
+            const emptyIndex = boardState.indexOf(0);
+
+            // Calculate the direction of movement (row/column shift)
+            const clickedRow = Math.floor(clickedIndex / 5);
+            const clickedCol = clickedIndex % 5;
+            const emptyRow = Math.floor(emptyIndex / 5);
+            const emptyCol = emptyIndex % 5;
+
+            if (clickedRow === emptyRow) {
+                // Same row: slide tiles horizontally
+                if (clickedCol < emptyCol) {
+                    // Slide tiles to the right
+                    for (let col = emptyCol; col > clickedCol; col--) {
+                        boardState[clickedRow * 5 + col] = boardState[clickedRow * 5 + col - 1];
+                    }
+                } else {
+                    // Slide tiles to the left
+                    for (let col = emptyCol; col < clickedCol; col++) {
+                        boardState[clickedRow * 5 + col] = boardState[clickedRow * 5 + col + 1];
+                    }
+                }
+                // Place the empty tile at the clicked index
+                boardState[clickedRow * 5 + clickedCol] = 0;
+            } else if (clickedCol === emptyCol) {
+                // Same column: slide tiles vertically
+                if (clickedRow < emptyRow) {
+                    // Slide tiles down
+                    for (let row = emptyRow; row > clickedRow; row--) {
+                        boardState[row * 5 + clickedCol] = boardState[(row - 1) * 5 + clickedCol];
+                    }
+                } else {
+                    // Slide tiles up
+                    for (let row = emptyRow; row < clickedRow; row++) {
+                        boardState[row * 5 + clickedCol] = boardState[(row + 1) * 5 + clickedCol];
+                    }
+                }
+                // Place the empty tile at the clicked index
+                boardState[clickedRow * 5 + clickedCol] = 0;
+            }
+
+            // Update the board display
+            initializeBoard();
+
+            // Check if the player has won the game
+            if (hasPlayerWon()) {
+                alert('Congratulations! You solved the puzzle!');
+            }
+        }
+
+        // Function to check if the player has won
+        function hasPlayerWon() {
+            return boardState.every((value, index) => value === initialBoard[index]);
+        }
+
+        // Function to perform random moves
+        function performRandomMoves() {
+            for (let i = 0; i < 100; i++) {
+                const emptyIndex = boardState.indexOf(0);
+
+                // Find adjacent tiles to the empty tile
+                const possibleMoves = [];
+                if (emptyIndex >= 5) possibleMoves.push(emptyIndex - 5); // Up
+                if (emptyIndex < 20) possibleMoves.push(emptyIndex + 5); // Down
+                if (emptyIndex % 5 !== 0) possibleMoves.push(emptyIndex - 1); // Left
+                if (emptyIndex % 5 !== 4) possibleMoves.push(emptyIndex + 1); // Right
+
+                // Choose a random move
+                const randomMoveIndex = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+
+                // Perform the move (swap tiles)
+                [boardState[emptyIndex], boardState[randomMoveIndex]] = [boardState[randomMoveIndex], boardState[emptyIndex]];
+            }
+            // Update the board display after the moves
+            initializeBoard();
+        }
+
+        // Add event listener to the start button
+        document.getElementById('startButton').addEventListener('click', performRandomMoves);
+
+        // Initialize the game board when the page loads
+        window.onload = initializeBoard;
+    </script>
+</body>
+</html>

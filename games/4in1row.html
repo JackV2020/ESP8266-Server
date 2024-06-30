@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect Four</title>
+    <style>
+        /* Style for the game grid */
+        #board {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            width: 350px;
+            height: 300px;
+            border: 2px solid black;
+            margin: 20px auto;
+        }
+
+        /* Style for each cell */
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: lightblue;
+            border: 1px solid black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        /* Style for discs */
+        .disc {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .red {
+            background-color: red;
+        }
+
+        .yellow {
+            background-color: yellow;
+        }
+
+        /* Style for game status */
+        #status {
+            text-align: center;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Connect Four</h1>
+    <div id="board">
+        <!-- Game board with 7 columns and 6 rows -->
+        <div class="cell" data-row="0" data-col="0"></div>
+        <div class="cell" data-row="0" data-col="1"></div>
+        <div class="cell" data-row="0" data-col="2"></div>
+        <div class="cell" data-row="0" data-col="3"></div>
+        <div class="cell" data-row="0" data-col="4"></div>
+        <div class="cell" data-row="0" data-col="5"></div>
+        <div class="cell" data-row="0" data-col="6"></div>
+        <div class="cell" data-row="1" data-col="0"></div>
+        <div class="cell" data-row="1" data-col="1"></div>
+        <div class="cell" data-row="1" data-col="2"></div>
+        <div class="cell" data-row="1" data-col="3"></div>
+        <div class="cell" data-row="1" data-col="4"></div>
+        <div class="cell" data-row="1" data-col="5"></div>
+        <div class="cell" data-row="1" data-col="6"></div>
+        <div class="cell" data-row="2" data-col="0"></div>
+        <div class="cell" data-row="2" data-col="1"></div>
+        <div class="cell" data-row="2" data-col="2"></div>
+        <div class="cell" data-row="2" data-col="3"></div>
+        <div class="cell" data-row="2" data-col="4"></div>
+        <div class="cell" data-row="2" data-col="5"></div>
+        <div class="cell" data-row="2" data-col="6"></div>
+        <div class="cell" data-row="3" data-col="0"></div>
+        <div class="cell" data-row="3" data-col="1"></div>
+        <div class="cell" data-row="3" data-col="2"></div>
+        <div class="cell" data-row="3" data-col="3"></div>
+        <div class="cell" data-row="3" data-col="4"></div>
+        <div class="cell" data-row="3" data-col="5"></div>
+        <div class="cell" data-row="3" data-col="6"></div>
+        <div class="cell" data-row="4" data-col="0"></div>
+        <div class="cell" data-row="4" data-col="1"></div>
+        <div class="cell" data-row="4" data-col="2"></div>
+        <div class="cell" data-row="4" data-col="3"></div>
+        <div class="cell" data-row="4" data-col="4"></div>
+        <div class="cell" data-row="4" data-col="5"></div>
+        <div class="cell" data-row="4" data-col="6"></div>
+        <div class="cell" data-row="5" data-col="0"></div>
+        <div class="cell" data-row="5" data-col="1"></div>
+        <div class="cell" data-row="5" data-col="2"></div>
+        <div class="cell" data-row="5" data-col="3"></div>
+        <div class="cell" data-row="5" data-col="4"></div>
+        <div class="cell" data-row="5" data-col="5"></div>
+        <div class="cell" data-row="5" data-col="6"></div>
+    </div>
+    <div id="status">Player 1's turn</div>
+
+    <script>
+        const board = document.getElementById('board');
+        const status = document.getElementById('status');
+        
+        // Create a 2D array representing the board
+        const rows = 6;
+        const cols = 7;
+        let gameBoard = [];
+        for (let i = 0; i < rows; i++) {
+            gameBoard[i] = [];
+            for (let j = 0; j < cols; j++) {
+                gameBoard[i][j] = null;
+            }
+        }
+
+        // Initialize the game state
+        let currentPlayer = 'red';
+        let gameIsActive = true;
+
+        // Function to handle cell clicks
+        board.addEventListener('click', (event) => {
+            const cell = event.target;
+            if (gameIsActive && cell.classList.contains('cell')) {
+                const col = parseInt(cell.getAttribute('data-col'));
+                dropDisc(col);
+            }
+        });
+
+        // Function to drop a disc in a column
+        function dropDisc(col) {
+            for (let row = rows - 1; row >= 0; row--) {
+                if (!gameBoard[row][col]) {
+                    gameBoard[row][col] = currentPlayer;
+                    const cell = board.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                    cell.innerHTML = `<div class="disc ${currentPlayer}"></div>`;
+                    if (checkWin(row, col)) {
+                        status.textContent = `${currentPlayer === 'red' ? 'Player 1' : 'Player 2'} wins!`;
+                        gameIsActive = false;
+                    } else if (checkDraw()) {
+                        status.textContent = `It's a draw!`;
+                        gameIsActive = false;
+                    } else {
+                        switchPlayer();
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Function to switch the current player
+        function switchPlayer() {
+            currentPlayer = (currentPlayer === 'red') ? 'yellow' : 'red';
+            status.textContent = `${currentPlayer === 'red' ? 'Player 1' : 'Player 2'}'s turn`;
+        }
+
+        // Function to check for a win
+        function checkWin(row, col) {
+            return checkDirection(row, col, 1, 0) || // Horizontal
+                   checkDirection(row, col, 0, 1) || // Vertical
+                   checkDirection(row, col, 1, 1) || // Diagonal (\)
+                   checkDirection(row, col, 1, -1); // Diagonal (/)
+        }
+
+        // Helper function to check a direction for a win
+        function checkDirection(row, col, deltaRow, deltaCol) {
+            let count = 1;
+            // Check forward direction
+            count += countDiscs(row + deltaRow, col + deltaCol, deltaRow, deltaCol);
+            // Check backward direction
+            count += countDiscs(row - deltaRow, col - deltaCol, -deltaRow, -deltaCol);
+            return count >= 4;
+        }
+
+        // Helper function to count discs in a direction
+        function countDiscs(row, col, deltaRow, deltaCol) {
+            let count = 0;
+            while (
+                row >= 0 &&
+                row < rows &&
+                col >= 0 &&
+                col < cols &&
+                gameBoard[row][col] === currentPlayer
+            ) {
+                count++;
+                row += deltaRow;
+                col += deltaCol;
+            }
+            return count;
+        }
+
+        // Function to check for a draw
+        function checkDraw() {
+            for (let col = 0; col < cols; col++) {
+                if (!gameBoard[0][col]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>
