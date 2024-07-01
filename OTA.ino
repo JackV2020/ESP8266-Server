@@ -62,7 +62,7 @@ void OTAConfigureWebServer(AsyncWebServer &server) {
 
   // redirects to /update after giving message and waiting some seconds
   server.on("/start_ota", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send_P(200, F("text/html"), OTA_Start_html, OTA_Start_processor);
+    request->send(200, F("text/html"), OTA_Start_html, OTA_Start_processor);
   });
 }
 

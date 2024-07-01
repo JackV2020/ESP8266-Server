@@ -227,11 +227,11 @@ void CfgMgrActions(AsyncWebServerRequest *request) {
 
   int params = request->params();
   if(params == 0){ // There is a GET so show the Configuration Management page
-      request->send_P(200, "text/html", CfgMgr_html, CfgMgrProcessor);
+      request->send(200, "text/html", CfgMgr_html, CfgMgrProcessor);
   } else {  // This is the POST of the Configuration Management page
     String passCFGMGR, newpassCFGMGR;
     for(int i=0;i<params;i++){
-      AsyncWebParameter* p = request->getParam(i);
+      const AsyncWebParameter* p = request->getParam(i);
       if(p->isPost()){
         // HTTP POST passCFGMGR value
         if (p->name() == F("passCFGMGR")) { passCFGMGR = p->value().c_str(); }
@@ -239,7 +239,7 @@ void CfgMgrActions(AsyncWebServerRequest *request) {
     }
     if (passCFGMGR == CfgMgrpass) { // passCFGMGR == right password
       for(int i=0;i<params;i++){
-        AsyncWebParameter* p = request->getParam(i);
+        const AsyncWebParameter* p = request->getParam(i);
         if(p->isPost()){
           // HTTP POST all other values
           if (p->name() == F("CfgMgrWiFihostname"))

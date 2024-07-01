@@ -634,8 +634,7 @@ void JsonWebPage(AsyncWebServerRequest *request) {
   html_response.concat(ntpJsonInfo());
   html_response.concat(F("\"}"));
 
-  char *c = const_cast<char *>(html_response.c_str());
-  request->send_P(200, "text/html", c);
+  request->send(200, "text/html", html_response);
 }
 
 String systemJsonInfo() {

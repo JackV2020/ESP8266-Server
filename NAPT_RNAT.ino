@@ -298,7 +298,7 @@ void NAPT_RNAT_ConfigureWebServer(AsyncWebServer &server) {
   _SERIAL_PRINTLN(F("Configuring NAPT Web Page..."));
 
   server.on("/NAPTClients", HTTP_GET, [](AsyncWebServerRequest * request) {
-      request->send_P(200,F("text/html"), NAPT_RNAT_NAPTClientsPage, NAPT_RNAT_NAPTprocessor);
+      request->send(200,F("text/html"), NAPT_RNAT_NAPTClientsPage, NAPT_RNAT_NAPTprocessor);
   });
 
   // Next /NAPTinfo is used by /NAPTClients above to refresh details
@@ -331,9 +331,7 @@ void NAPT_RNAT_NAPTinfo(AsyncWebServerRequest * request) {
   result.concat(F("|"));
   result.concat(NAPT_RNAT_NAPTClientsInfo());
 
-  char* c = const_cast<char*>(result.c_str());
-  request->send_P(200,F("text/html"), c);
-}
+  request->send(200, "text/html", result);}
 
 // Next is used by NAPT_RNAT_NAPTinfo above and by json page
 

@@ -84,7 +84,7 @@ void LittleFSWebConfigureWebServer(AsyncWebServer &server) {
   // 'Easter Egg' LittleFSWeb.html which is in the file can also be used like:
 
   server.on("/LittleFSWebFixIt", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send_P(200, "text/html", LittleFSWeb);
+    request->send(200, "text/html", LittleFSWeb);
   });
 
   // Logs you out
@@ -610,7 +610,7 @@ void LittleFSWebSaveFile(
     // parameter 'String filename' = "blob" ; filename = 'param' filename
     int params = request->params();
     for (int i = 0; i < params; i++) {
-      AsyncWebParameter *p = request->getParam(i);
+      const AsyncWebParameter *p = request->getParam(i);
       if (p->isPost()) {
         // HTTP POST all other values
         if (p->name() == F("filename")) { filename = p->value().c_str(); }
@@ -647,7 +647,7 @@ void LittleFSWebSaveFile(
       int params = request->params();
       bool LastChunk = false;
       for (int i = 0; i < params; i++) {
-        AsyncWebParameter *p = request->getParam(i);
+        const AsyncWebParameter *p = request->getParam(i);
         if (p->name() == F("filename")) { filename = p->value().c_str(); }
         if (p->name() == F("isLastChunk")) { LastChunk = p->value() == "true"; }
       }
