@@ -47,7 +47,7 @@ ESP8266-Servers.ino : Some sections integrated into one app :
     ... The internal clock is synchronised with ntp
     ... Has functions to give you boottime, uptime and current time
 
-  - OTA, 'Over The Air' allows you to upload sketches remotely.
+  - FOTA, 'Firmware On The Air' allows you to upload sketches remotely.
     ... No need to connect to your computer when you have an upgrade
 
   - Examples and templates is not a real section
@@ -80,14 +80,14 @@ ESP8266-Servers.ino : Some sections integrated into one app :
 
   NOTES:
 
-  1) To use the memory efficiently the wsDataStore is in 2nd Heap 
-    and MMU setting needs to be option 3 to enable wsDataStore:
+  1) The wsDataStore is in 2nd Heap to use the memory efficiently. 
+    Arduino IDE MMU setting needs to be option 3 to enable the wsDataStore:
     "16KB cache + 48KB IRAM and 2nd Heap (shared)" 
 
   2) Every section explains which libraries to install and sometimes more
 
   3) You may tune : 
-    - SERIAL_PRINT                        in this file below
+    - debug1, debug2,....                 in any .ino file
     - DEFAULT_MAX_WS_CLIENTS              in this file below
     - chunkSize                           in LittleFSWeb.h
     - IP_NAPT_VALUE and IP_PORTMAP_VALUE  in NAPT_RNAT.ino
@@ -118,33 +118,19 @@ ESP8266-Servers.ino : Some sections integrated into one app :
 #define APPVERSION "V1.0.0"
 
 /*
-  I use compiler macros to include / exclude all Serial.print... statements
- This means you will not find any Serial.print... statements in my code but
- you will find  _SERIAL_PRINT statements 
- 
- Set to true when compiling for debugging during development
- Set to false when compiling for production
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "debug1 && Serial.print..." 
+    "debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
 */
 
-#define SERIAL_PRINT true
-
-#if SERIAL_PRINT
-#define _SERIAL_BEGIN(z) Serial.begin(z)
-#define _SERIAL_PRINT(z) Serial.print(z)
-#define _SERIAL_PRINTLN(z) Serial.println(z)
-#define _SERIAL_PRINTF_P1(y, z) Serial.printf_P(y, z)        // P1 : 1 parameter
-#define _SERIAL_PRINTF_P2(x, y, z) Serial.printf_P(x, y, z)  // P2 : 2 etc.
-#define _SERIAL_PRINTF_P3(w, x, y, z) Serial.printf_P(w, x, y, z)
-#define _SERIAL_PRINTF_P4(v, w, x, y, z) Serial.printf_P(v, w, x, y, z)
-#else
-#define _SERIAL_BEGIN(z)
-#define _SERIAL_PRINT(z)
-#define _SERIAL_PRINTLN(z)
-#define _SERIAL_PRINTF_P1(y, z)
-#define _SERIAL_PRINTF_P2(x, y, z)
-#define _SERIAL_PRINTF_P3(w, x, y, z)
-#define _SERIAL_PRINTF_P4(v, w, x, y, z)
-#endif
+bool debug1 = true; // debug messages type 1
+//bool debug2 = true; // debug messages type 2
 
 // ------------------------------------- Include modules used by more ino files
 
@@ -154,6 +140,10 @@ ESP8266-Servers.ino : Some sections integrated into one app :
 #include <LittleFS.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+
+// https://github.com/yubox-node-org/ESPAsyncWebServer
+
+AsyncWebSocketClient * client;
 
 // ------------------------------------------ Include the Configuration Manager
 
@@ -186,31 +176,95 @@ Did you forget Configuration Manager Password, LittleFSWeb user and or password,
 const char indexhtml[] PROGMEM = R"rawliteral(<!DOCTYPE HTML>
 <html lang="en">
 <head>
-<title>Home</title>
-<meta name='viewport' content='width=device-width, initial-scale=1'>
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
-<style>
-.rnd_btn {background-color:lightgrey;border-radius:50%;border-width:3;
-  border-color:gold;color:blue;width:100px;height:50px;text-align:center}
-</style>
+ <title>Home</title>
+ <meta name='viewport' content='width=device-width, height=device-height, initial-scale=1, user-scalable=no'>
+ <link rel="icon" type="image/x-icon" href="/favicon.ico">
+ <style>
+  :root {
+   --scale-factor: 1;
+  }
+  .rnd_btn {
+   background-color: lightgrey;
+   border-radius: 50%;
+   border-width: 3px;
+   border-color: gold;
+   color: blue;
+   width: 100px;
+   height: 50px;
+   text-align: center;
+  }
+  body {
+   background-color: #E6E6FA;
+   margin: 0;
+   padding: 0;
+   height: 100vh;
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   overflow: hidden;
+  }
+  .container {
+   text-align: center;
+   transform-origin: top;
+   transform: scale(var(--scale-factor));
+  }
+  .scrollable {
+   height: auto;
+   display: block;
+   overflow: auto;
+  }
+ </style>
 </head>
-<body style='background-color: #E6E6FA;'>
-<center>
-<h1>Configuring</h1>
-WiFi and other settings.<br>
-Initial password: <font color='#9900FF'>secret</font><br><br>
-<a href='/ConfigurationManager'><button class="rnd_btn">Configure</button></a>
-<h1>LittleFSWeb</h1>
-Web interface to manage files.<br>
-Initial username: <font color='#9900FF'>admin</font><br>
-Initial password: <font color='#9900FF'>admin</font><br><br>
-<a href='/LittleFSWeb/LittleFSWeb.html'>
-  <button class="rnd_btn">LittleFSWeb</button></a>
-<h1>NAPT and JSON</h1>
-<a href='/NAPTClients'><button class="rnd_btn">NAPT Clients</button></a><br><br>
-<a href='/JsonWebPage'><button class="rnd_btn">JSON</button></a>
-<p id='info'></p>
-</center>
+<body>
+ <div class="container">
+  <h1>Configuring</h1>
+  WiFi, NAPT and other settings.<br><br>
+  <a href='/ConfigurationManager'>
+   <button class="rnd_btn">Configure</button>
+  </a>
+  <h1>LittleFSWeb</h1>
+  Manage directories and files.<br><br>
+  <a href='/LittleFSWeb/LittleFSWeb.html'>
+   <button class="rnd_btn">LittleFSWeb</button>
+  </a>
+  <h1>NAPT Status</h1>
+  Details on connected NAPT clients.<br><br>
+  <a href='/NAPTClients'>
+   <button class="rnd_btn">NAPT Clients</button>
+  </a>
+  <h1>System Info</h1>
+  <a href='/JsonWebPage'>
+   <button class="rnd_btn">JSON</button>
+  </a>
+  <p id='info'></p>
+ </div>
+ <script>
+  function updateScaleFactor() {
+   const vh = window.innerHeight; // Get viewport height
+   const vw = window.innerWidth; // Get viewport width
+   if (vh > vw) { // If in portrait mode (height > width)
+    const scaleFactor = (vh + 200) / 1000; // Calculate scale factor based on height
+    document.documentElement.style.setProperty('--scale-factor', scaleFactor); // Set CSS variable for scale factor
+    document.body.style.overflow = 'hidden'; // Disable scrolling in portrait mode
+    document.body.style.height = '100vh'; // Set body height to 100% of viewport height
+    document.body.style.display = 'flex'; // Use flexbox layout
+    document.body.style.justifyContent = 'center'; // Center content horizontally
+    document.body.style.alignItems = 'center'; // Center content vertically
+    document.querySelector('.container').classList.remove('scrollable'); // Remove scrolling class from container
+    window.scrollTo(0, 0); // Scroll to the top
+   } else { // If in landscape mode (width >= height)
+    document.documentElement.style.setProperty('--scale-factor', 1); // Reset scale factor to 1 (no scaling)
+    document.body.style.overflow = 'auto'; // Enable scrolling in landscape mode
+    document.body.style.height = 'auto'; // Set body height to auto
+    document.body.style.display = 'block'; // Use block layout
+    document.body.style.justifyContent = 'unset'; // Reset horizontal alignment
+    document.body.style.alignItems = 'unset'; // Reset vertical alignment
+    document.querySelector('.container').classList.add('scrollable'); // Add scrolling class to container
+   }
+  }
+  window.addEventListener('resize', updateScaleFactor); // Update scale factor on window resize
+  window.addEventListener('load', updateScaleFactor); // Update scale factor when page loads
+ </script>
 </body>
 </html>
 )rawliteral";
@@ -241,16 +295,18 @@ BootTime: %BOOTTIME%<br>
 UpTime: %UPTIME%<br>
 <br>
 To use that function you add the extension .proc to the name of your file.<br>
-To get a string replacement you put a string between 2 %%'s.
+To get a string replacement you put a string between 2 %%'s.<br>
+<!-- Watch the use of the 2 %%'s to prevent LED_BUILTIN processing -->
 <br>
 Example : to get the value of LED_BUILTIN you use %%LED_BUILTIN%%<br>
 ( only in your .html.proc, .js.proc or .css.proc file)<br>
 <br>
 Notes:<br>
-- Any other single %% needs to be replaced by 2 %%'s<br>
-as you can see when you edit this file.<br>
+<!-- Watch the use of the single and the 2 %%'s resulting in 1 %% anyway -->
+- When your html does not use your single %% the way you want....<br>
+remember to replace it by 2 %%'s as you can see when you edit this file.<br>
 - KEY1..KEY4 are random numbers which are created just after reboot<br>
-and can be used to encrypt traffic.<br>
+are not in use yet and could be used to encrypt traffic.<br>
 - And of course you can add what you want in the proc_processor function.
 </center>
 </body>
@@ -265,15 +321,13 @@ AsyncWebServer WebServer(80);
 
 void setup() {
 
-  _SERIAL_BEGIN(115200);  // any '_SERIAL_....' is replaced/removed by compiler.
+  Serial.begin(115200);
   delay(5000);
-  _SERIAL_PRINTLN(F("\n\nStartup begin...\n"));
+  debug1 && Serial.println(F("\n\nStartup begin...\n"));
 
   InitFS();
 
   CfgMgrReadConfig();
-
-  LittleFSWebinit(CfgMgrLittleFSWebuser, CfgMgrLittleFSWebpassword);
 
   if (initWiFi()) {
 
@@ -292,7 +346,7 @@ void setup() {
 
   // --- Begin WebServer setups
 
-  _SERIAL_PRINTLN(F("Webserver Setup..."));
+  debug1 && Serial.println(F("Webserver Setup..."));
 
   WebServer.onNotFound(notFound);
 
@@ -305,16 +359,16 @@ void setup() {
   WebServer.on("/JsonWebPage", HTTP_GET, JsonWebPage);
 
   // Configuration Manager
-  CfgMgrConfigureWebServer(WebServer);
+  CfgMgrConfigureWebServer(WebServer,CfgMgruser, CfgMgrpassword);
 
   // LittleFS Web Interface
-  LittleFSWebConfigureWebServer(WebServer);
+  LittleFSWebConfigureWebServer(WebServer,CfgMgruser, CfgMgrpassword);
 
   // Network Address and Port Translation for extra routed WiFi network
   NAPT_RNAT_ConfigureWebServer(WebServer);
 
-  // On The Air upgrades
-  OTAConfigureWebServer(WebServer);
+  // Update Firmware On the air
+  FOTAConfigureWebServer(WebServer,CfgMgruser, CfgMgrpassword);
 
   // Websocket Server
   wsServerConfigureWebSocketServer(WebServer);
@@ -326,7 +380,7 @@ void setup() {
 
   // ---- End WebServer setups
 
-  _SERIAL_PRINTLN(F("\nStartup complete...\n"));
+  debug1 && Serial.println(F("\nStartup complete...\n"));
 
   ShowSystemInfo();
 
@@ -350,7 +404,7 @@ void loop() {
 // ----------------------------------------------------------------------- WiFi
 
 bool initWiFi() {
-  _SERIAL_PRINTLN(F("Connect to WiFi ... \n"));
+  debug1 && Serial.println(F("Connect to WiFi ... \n"));
   pinMode(LED_BUILTIN, OUTPUT);
   WiFi.persistent(false);  // do not store WiFi credentials in flash
   WiFi.mode(WIFI_STA);
@@ -365,7 +419,7 @@ bool initWiFi() {
   digitalWrite(LED_BUILTIN, 1);
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.mode(WIFI_AP);
-    _SERIAL_PRINTLN(F("No WiFi ..."));
+    debug1 && Serial.println(F("No WiFi ..."));
     return false;
   }
   return true;
@@ -377,7 +431,7 @@ bool initWiFi() {
 // ====== notFound handeled by WebServerConfigure()
 
 void notFound(AsyncWebServerRequest *request) {
-  _SERIAL_PRINTLN(F("Client:")
+  debug1 && Serial.println(F("Client:")
                   + request->client()->remoteIP().toString()
                   + F(" ") + request->url());
   request->send(404, "text/plain", F("Not found"));
@@ -442,16 +496,12 @@ int key4;
 
 void WebServerConfigure() {
 
-  _SERIAL_PRINTLN(F("Configuring WebServer ..."));
-
-  WebServer.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
-    ESP.restart();
-  });
+  debug1 && Serial.println(F("Configuring WebServer ..."));
 
   WebServer.on("/*", HTTP_GET, [](AsyncWebServerRequest *request) {
     String path = request->url();
 
-    //    _SERIAL_PRINTLN("About to serve: "+path);
+    //    debug1 && Serial.println("About to serve: "+path);
     // Check if the path contains a "." indicating a file
     if ((path.indexOf(F(".")) == -1) && (path != F("/"))) { path += F("/"); }
     // Check if the path ends with a slash, indicating a directory
@@ -470,7 +520,7 @@ void WebServerConfigure() {
       AsyncWebServerResponse *response = 
       request->beginResponse(LittleFS, path + F(".br"), getContentType(path));
       response->addHeader(F("Content-Encoding"), F("br"));
-      _SERIAL_PRINTLN(F("Serve Brotli : ") + path + F(".br"));
+      debug1 && Serial.println(F("Serve Brotli : ") + path + F(".br"));
       request->send(response);
     } else
 */
@@ -479,13 +529,13 @@ void WebServerConfigure() {
       AsyncWebServerResponse *response =
         request->beginResponse(LittleFS, path + F(".gz"), getContentType(path));
       response->addHeader(F("Content-Encoding"), F("gzip"));
-      _SERIAL_PRINTLN(F("Serve Gzip : ") + path + F(".gz"));
+      debug1 && Serial.println(F("Serve Gzip : ") + path + F(".gz"));
       request->send(response);
     }
 
     // Check for uncompressed version
     else if (LittleFS.exists(path)) {
-      _SERIAL_PRINTLN(F("Serve Uncompressed : ") + path);
+      debug1 && Serial.println(F("Serve Uncompressed : ") + path);
       if (path.endsWith(F(".proc"))) {
         request->send(LittleFS, path, getContentType(path),
                       false,  // false enable processor | true send as template.
@@ -496,7 +546,7 @@ void WebServerConfigure() {
     }
     // If no file found, return 404
     else {
-      _SERIAL_PRINTLN(F("File Not Found: ") + path);
+      debug1 && Serial.println(F("File Not Found: ") + path);
       //request->send(404, "text/plain", "File Not Found");
       request->send(200, "text/html",
                     F("<meta http-equiv='refresh' content='2; URL=/'>"));
@@ -562,48 +612,46 @@ String proc_processor(const String &var) {
 
 void ShowSystemInfo() {
   // You may want to add more info to be shown on startup.
-  _SERIAL_PRINTLN(F("--------------------------------------------------"));
-  _SERIAL_PRINTF_P1(PSTR("           WiFi IP: %s\n"),
+  debug1 && Serial.println(F("--------------------------------------------------"));
+  debug1 && Serial.printf_P(PSTR("           WiFi IP: %s\n"),
                     WiFi.localIP().toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("     WiFi hostname: %s\n"),
+  debug1 && Serial.printf_P(PSTR("     WiFi hostname: %s\n"),
                     WiFi.hostname().c_str());
-  _SERIAL_PRINTF_P1(PSTR("         WiFi SSID: %s\n"),
+  debug1 && Serial.printf_P(PSTR("         WiFi SSID: %s\n"),
                     WiFi.SSID().c_str());
-  _SERIAL_PRINTF_P1(PSTR("          WiFi Pwd: %s\n"),
+  debug1 && Serial.printf_P(PSTR("          WiFi Pwd: %s\n"),
                     WiFi.psk().c_str());
-  _SERIAL_PRINTF_P1(PSTR("       Wifi Status: %d\n"),
+  debug1 && Serial.printf_P(PSTR("       Wifi Status: %d\n"),
                     WiFi.status());
-  _SERIAL_PRINTF_P1(PSTR("       Wifi Signal: %d dBm\n"),
+  debug1 && Serial.printf_P(PSTR("       Wifi Signal: %d dBm\n"),
                     WiFi.RSSI());
-  _SERIAL_PRINTF_P1(PSTR("          WiFi MAC: %s\n"),
+  debug1 && Serial.printf_P(PSTR("          WiFi MAC: %s\n"),
                     WiFi.macAddress().c_str());
-  _SERIAL_PRINTF_P1(PSTR("      WiFi Gateway: %s\n"),
+  debug1 && Serial.printf_P(PSTR("      WiFi Gateway: %s\n"),
                     (WiFi.gatewayIP()).toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("       WiFi Subnet: %s\n"),
+  debug1 && Serial.printf_P(PSTR("       WiFi Subnet: %s\n"),
                     (WiFi.subnetMask()).toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("        WiFi DNS 1: %s\n"),
+  debug1 && Serial.printf_P(PSTR("        WiFi DNS 1: %s\n"),
                     (WiFi.dnsIP(0)).toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("        WiFi DNS 2: %s\n"),
+  debug1 && Serial.printf_P(PSTR("        WiFi DNS 2: %s\n"),
                     (WiFi.dnsIP(1)).toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("        WiFi DNS 3: %s\n"),
+  debug1 && Serial.printf_P(PSTR("        WiFi DNS 3: %s\n"),
                     (WiFi.dnsIP(2)).toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("           AP SSID: %s\n"),
+  debug1 && Serial.printf_P(PSTR("           AP SSID: %s\n"),
                     WiFi.softAPSSID().c_str());
-  _SERIAL_PRINTF_P1(PSTR("            AP Pwd: %s\n"),
+  debug1 && Serial.printf_P(PSTR("            AP Pwd: %s\n"),
                     CfgMgrNAPTpass.c_str());
-  _SERIAL_PRINTF_P1(PSTR("            AP MAC: %s\n"),
+  debug1 && Serial.printf_P(PSTR("            AP MAC: %s\n"),
                     WiFi.softAPmacAddress().c_str());
-  _SERIAL_PRINTF_P1(PSTR("             AP IP: %s\n"),
+  debug1 && Serial.printf_P(PSTR("             AP IP: %s\n"),
                     WiFi.softAPIP().toString().c_str());
-  _SERIAL_PRINTF_P1(PSTR("            AP DNS: %s\n"),
+  debug1 && Serial.printf_P(PSTR("            AP DNS: %s\n"),
                     CfgMgrNAPTDNS.c_str());
-  _SERIAL_PRINTF_P1(PSTR("  LittleFSWeb User: %s\n"),
-                    CfgMgrLittleFSWebuser.c_str());
-  _SERIAL_PRINTF_P1(PSTR("   LittleFSWeb Pwd: %s\n"),
-                    CfgMgrLittleFSWebpassword.c_str());
-  _SERIAL_PRINTF_P1(PSTR(" Configuration Pwd: %s\n"),
-                    CfgMgrpass.c_str());
-  _SERIAL_PRINTLN(F("--------------------------------------------------"));
+  debug1 && Serial.printf_P(PSTR("       CfgMgr User: %s\n"),
+                    CfgMgruser.c_str());
+  debug1 && Serial.printf_P(PSTR("        CfgMgr Pwd: %s\n"),
+                    CfgMgrpassword.c_str());
+  debug1 && Serial.println(F("--------------------------------------------------"));
 }
 
 // ------------------------------------------------------------------- LittleFS
@@ -612,10 +660,10 @@ void ShowSystemInfo() {
 
 void InitFS() {
   if (!LittleFS.begin()) {
-    _SERIAL_PRINTLN(F("LittleFS mount failed\nFormatting LittleFS filesystem"));
+    debug1 && Serial.println(F("LittleFS mount failed\nFormatting LittleFS filesystem"));
     LittleFS.format();
     if (!LittleFS.begin()) {
-      _SERIAL_PRINTLN(F("Formatting LittleFS filesystem failed"));
+      debug1 && Serial.println(F("Formatting LittleFS filesystem failed"));
     }
   }
 }
@@ -645,8 +693,8 @@ String systemJsonInfo() {
   json.concat(APPVERSION);
   json.concat(F("\" , \"SDK Version\":\""));
   json.concat(ESP.getSdkVersion());
-  json.concat(F("\" , \"SERIAL_PRINT\":\""));
-  json.concat(SERIAL_PRINT);
+  json.concat(F("\" , \"debug\":\""));
+  json.concat(String(debug1));
   json.concat(F("\" , \"getChipId\":\""));
   json.concat(String(ESP.getChipId()));
   json.concat(F("\" , \"led\":\""));

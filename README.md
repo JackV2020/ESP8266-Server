@@ -2,12 +2,22 @@
 
 You could leave this app as is and use is as a WiFi extender or 'MQTT-like' server in your network but you can also extend it because it does not use that much memory.
 
+Install 'NTP' by Stefan Staub, 'ESPAsyncTCP' by dvarrel and 
+'ESP Async WebServer' by Me-No-Dev via the library manager.
+<br>Note the spaces in the name 'ESP Async WebServer'
+
 ESP8266-Servers has servers like:
 
   - LittleFS Web (upload, download, copy, rename, create, edit etc.)
   - Router with NAPT and Reverse NAT
   - WebSockets server with example clients (GPIO and DataStore like MQTT)
   - and a Configuration Manager
+
+Other functionality includes:
+
+  - FOTA (my implementation of 'Firmware On The Air' which you can customize)
+  - NTP
+  - Symmetric encryption of stored credentials
 
 Before the details and since there are many license types out there (kindly meant).... 
 
@@ -82,7 +92,7 @@ Every now and then you may want to have a look at the screenshots at the end of 
     - Has functions to give you boottime, uptime and current time in your app
     - puts 'BootTime' in wsDataStore for demo purpose 
 
-  - OTA, 'Over The Air' allows you to upload sketches remotely
+  - FOTA, 'Firmware Over The Air' allows you to upload sketches remotely
     - No need to connect to your computer when you have an upgrade
 
   - Examples and templates
@@ -91,15 +101,17 @@ Every now and then you may want to have a look at the screenshots at the end of 
     - Template for ntp configuration (Summer and winter time)
     - Template for DHCP reservations on NAPT subnet
     - Template for Reverse NAT
-    - /zExamples folder with 3 websocket client examples
+    - /zExamples folder with 4 websocket client examples
       - html to share data with other clients (already shows BootTime)
       - ino to share data with other clients (also with html clients)
+      - another ino to share data with other clients (also with html clients)
       - html to control GPIOs, react on interrupt and receive A0 readings
       - and proc_processor.html.proc for the proc_processor (see below)
     - /index.html is also a template you can edit and delete
     - /LittleFSWeb/LittleFSWeb.html is the LittleFSWeb page you may change
       - be carefull with this one
       - when you wreck it use http://'YourESP8266DeviceIP'/LittleFSWebFixIt
+        (this serves the original page directly from PROGMEM)
 
   - The main webserver
     - Has a function in it so it can replace strings
@@ -139,6 +151,7 @@ Every now and then you may want to have a look at the screenshots at the end of 
     - IP_NAPT_VALUE and IP_PORTMAP_VALUE
       in NAPT_RNAT.ino control the table sizes and are very memory consuming
     - wsDSNumRows in wsServer.ino to set the number of entries in the wsDataStore
+    - an anything else you can find and want to
 
   - You can use the web server for other things like
     - Create a folder /games
@@ -149,7 +162,7 @@ Every now and then you may want to have a look at the screenshots at the end of 
 
   - Did you lock yourself out in a terrible way ?
     - Connect D8 to the 3.3V while it runs which 
-      - deletes files with Configuration Manager password and LittleFSWeb credentials
+      - deletes files with user and password 
       - deletes /index.html and LittleFSWeb.html
       - deletes /index.gz and LittleFSWeb.gz
       - reboots

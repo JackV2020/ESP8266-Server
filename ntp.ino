@@ -33,6 +33,20 @@ WiFiUdp.h, time.h and Ticker.h are part of the esp8266 core for Arduino IDE.
 ntp.h is the file which goes with this ntp.ino
 
 ---------------------------------------------------------------------------- */ 
+/*
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "ntp_debug1 && Serial.print..." 
+    "ntp_debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
+*/
+
+bool ntp_debug1 = true; // debug messages type 1
+//bool ntp_debug2 = true; // debug messages type 2
 
 #include <WiFiUdp.h>
 #include <time.h>
@@ -41,7 +55,7 @@ ntp.h is the file which goes with this ntp.ino
 
 #include "ntp.h"
 
-#define ntpPath "/Configntp/ntp.txt"
+#define ntpPath "/NTP/Config.txt"
 
 String NTPBootTime="-";
 time_t NTPBootTimeEpoch; // remember this at boottime to calculate uptime
@@ -50,18 +64,18 @@ WiFiUDP wifiUdp;
 NTP ntp(wifiUdp);
 
 Ticker ntpBootTimeTrigger;
-int ntpBootTimeTriggerInterval = 5; // seconds
+int ntpBootTimeTriggerInterval = 11; // seconds
 
 // ====== ntp trigger stops when NTPBootTime is found.
 
 void ntpBootTimeTriggerRoutine(){
-    _SERIAL_PRINTLN(F("ntpBootTimeTriggerRoutine triggered"));
+    ntp_debug1 && Serial.println(F("ntpBootTimeTriggerRoutine triggered"));
     ntp.update();
     if (ntpTime().substring(0,4) != "1970" ) {
       NTPBootTimeEpoch = ntp.epoch();
       NTPBootTime = ntpTime();
-      _SERIAL_PRINTLN(F("Boot time epoch:")+String(NTPBootTimeEpoch));
-      _SERIAL_PRINTLN(F("Boot time:")+NTPBootTime);
+      ntp_debug1 && Serial.println(F("Boot time epoch:")+String(NTPBootTimeEpoch));
+      ntp_debug1 && Serial.println(F("Boot time:")+NTPBootTime);
 //      ntp.updateInterval(60000); // back to standard 60 seconds
       ntp.updateInterval(3600000); // to 1 hour
       ntpBootTimeTrigger.detach();
@@ -74,7 +88,7 @@ void ntpBootTimeTriggerRoutine(){
 
 void ntpInit() {
 
-  _SERIAL_PRINTLN(F("Configuring NTP ..."));
+  ntp_debug1 && Serial.println(F("Configuring NTP ..."));
 
   if (!LittleFS.exists(ntpPath)) {
     File file = LittleFS.open(ntpPath, "w");

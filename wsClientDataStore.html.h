@@ -92,8 +92,13 @@ function WipeData() {
 
 function DataStore(type, name, value) {
  console.log("---------------------")
- console.log("Send: "+type+"||"+name+"||"+value)
- socket.send(type+"||"+name+"||"+value)
+ if (type == 21) {
+  console.log("Send: "+type+"||"+name+"||"+value)
+  socket.send(type+"||"+name+"||"+value)
+ } else {
+  console.log("Send: "+type+"||"+name)
+  socket.send(type+"||"+name)
+ }
 }
 
 // ------------------------- WebSocket Receive From Server

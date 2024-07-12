@@ -13,6 +13,10 @@ NAPT_RNAT.h contains 3 PROGMEM's :
 const char NAPT_dhcp_defaults[] PROGMEM = R"rawliteral(#
 # DHCP Reservations
 #
+# Changes to this file need a reboot to be effective.
+#
+# Use Configuration Manager 'Save & Boot' button.
+#
 # You can have up to 10 reservations but....
 # The NAPT router supports 4 concurrent connections only.
 #
@@ -20,12 +24,10 @@ const char NAPT_dhcp_defaults[] PROGMEM = R"rawliteral(#
 #     x : the subnet you configured
 #     y : 100 for the first reservation, 101 for the next etc.
 #
-# Addresses for unregistered devices start after the reservations.
+# Addresses for unregistered devices start after the last reservation.
 #
 # Format : MAC|Name (max 20 characters)|Any remark you want to add.
 #          Lines starting with '#' are comment lines
-#
-# Changes to this file need a reboot to be effective.
 #
 00:11:22:33:44:50|My Laptop|This get address 192.168.x.100
 00:11:22:33:44:51|My Phone|This get address  192.168.x.101
@@ -47,31 +49,29 @@ F4:CF:A2:48:41:5B|ESP8266 1|Test ESP with web server...102
 const char Reverse_NAT_template[] PROGMEM = R"rawliteral(#
 # Reverse NAT
 #
-# Format :
-#  UDP/TCP|External Port|Internal Address Host Part|Internal Port|Comment
+# Changes to this file need a reboot to be effective.
 #
-# The 'Internal Address' needs to be a DHCP reservation I think.
-# I did not test with fixed addresses in devices on the NAPT side.
+# Use Configuration Manager 'Save & Boot' button.
 #
-# Note that the first 3 bytes of the 'Internal Address' are the network and
-# you only specify the last byte in the rule.
+# Format : field1|field2|field3|field4|field5
+#   field 1 : UDP/TCP
+#   field 2 : External Port
+#   field 3 : Internal Address Host Part
+#   field 4 : Internal Port
+#   field 5 : Optional comment
 #
-# DHCP reservations start at x.y.z.100 so an example is :
-#
-#  TCP|80|100|80
-#
-# to forward external TCP to port 80 to x.y.z.100 port 80
+# Note that the first 3 bytes of the 'Internal Address' are
+#  the network and you only specify the last byte in the rule.
 #
 #                       WARNING :
 #
-# Forwarding port 80 to port 80 on a device disables access this NAPT server !!!
+# Forwarding port 80 to port 80 on another device disables access
+#   to this NAPT server from the WiFi !!!
 #
 #       It would be better to forward port 81 to port 80 like below.
 #
 TCP|81|102|80|forward external TCP to port 81 to x.y.z.102 port 80
 UDP|81|102|80|forward external UDP to port 81 to x.y.z.102 port 80
-#
-# Changes to this file need a reboot to be effective.
 #
 # End of this file
 #
@@ -82,35 +82,91 @@ UDP|81|102|80|forward external UDP to port 81 to x.y.z.102 port 80
 const char NAPT_RNAT_NAPTClientsPage[] PROGMEM = R"rawliteral(<!DOCTYPE HTML>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
-<meta charset="UTF-8">
-<title>NAPT Clients</title>
-<style>
-.rnd_btn {background-color:lightgrey;border-radius:50%%;border-width:3;
-  border-color:gold;color:blue;width:100px;height:50px;text-align: center}
-th, td {
-  padding-left: 10px;
-  padding-right: 10px;
-  border: 1px solid black;
-}
-</style>
+ <title>NAPT Clients</title>
+ <meta name='viewport' content='width=device-width, height=device-height, initial-scale=1, user-scalable=no'>
+ <link rel="icon" type="image/x-icon" href="/favicon.ico">
+ <style>
+  :root {
+   --scale-factor: 1;
+  }
+  .rnd_btn {
+   background-color: lightgrey;
+   border-radius: 50%;
+   border-width: 3px;
+   border-color: gold;
+   color: blue;
+   width: 100px;
+   height: 50px;
+   text-align: center;
+  }
+  body {
+   background-color: #E6E6FA;
+   margin: 0;
+   padding: 0;
+   height: 100vh;
+   display: flex;
+   justify-content: center;
+//   align-items: center;
+   overflow: hidden;
+  }
+  .container {
+   text-align: center;
+   transform-origin: top;
+   transform: scale(var(--scale-factor));
+  }
+  .scrollable {
+   height: auto;
+   display: block;
+   overflow: auto;
+  }
+  th, td {
+    padding-left: 10px;
+    padding-right: 10px;
+    border: 1px solid black;
+  }
+  .centered-content {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 100;
+  }
+  #napttable {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100px; /* Adjust as necessary */
+  }
+  table {
+    margin: auto; /* Centers the table */
+  }
+ </style>
 </head>
-<body id='body' style='background-color: #E6E6FA;' onload='NAPTinfo()'>
-<center>
-<p><h1>NAPT Clients</h1>
-<a href="/"><button class="rnd_btn">Home</button></a>
-<button class="rnd_btn" onclick="NAPTinfo()">Refresh</button>
-<button class="rnd_btn" onclick="NAPTInfoToggle()">Info</button>
-</p>
-<p id='info'></p>
-<p id='time'></p>
-<p id="detailsheader"></p>
-<p id="details"></p>
-</center>
+<body onload='updateScaleFactor();NAPTinfo()'>
+ <div class="container">
+  <h1>NAPT Clients</h1>
+  
+  <a href="/"><button class="rnd_btn">Home</button></a>
+  <button class="rnd_btn" onclick="NAPTinfo()">Refresh</button>
+  <button class="rnd_btn" onclick="NAPTInfoToggle()">Info</button>
 
-<script>
-// Short for document.getElementById function
+  <span id='info' style="display: none;">
+  <br><hr><br>
+- This screen shows all devices with a<br>
+connection to this NAPT router.<br><br>
+- Up to 4 concurrent clients are supported.<br>
+- Up to 10 DHCP reservations are supported.<br>
+- Edit reservations in '/NAPT_RNAT/DHCPReservations.txt'<br>
+- DHCP reservations start at 192.168.0.100<br>
+- Unregistered devices start after reservations.<br><br>
+....Reservations are activated at startup....<br>
+....So to activate reservations you need a restart....<br><br>
+  <hr>
+  </span>
+  <p id='time'></p>
+  <p id="naptcountheader"></p>
+  <div id="napttable" class="centered-content"></div>
+ </div>
+ <script>
 function _(el) {
  return document.getElementById(el);
 }
@@ -120,30 +176,20 @@ var NAPTInfo = false;
 function NAPTInfoToggle() {
  NAPTInfo = !NAPTInfo;
  if (NAPTInfo) {
-  _('info').innerHTML = '<hr><br>'
-  + '- This screen shows all devices with a<br><br>'
-  + 'connection to this NAPT router.<br><br>'
-  + '- Up to 4 concurrent clients are supported.<br><br>'
-  + '- Up to 10 DHCP reservations are supported.<br><br>'
-  + '- DHCP reservations start at 192.168.%NAPTnet%.100<br><br>'
-  + '- Unregistered devices start after reservations.<br><br>'
-  + '- Edit reservations in \'%NAPTDHCPReservationsPath%\'<br><br>'
-  + '....Reservations are activated at startup....<br>'
-  + '....So to activate reservations you need a restart....<br>'
-  + '<br><hr>'
+  _('info').style.display = 'block'
  } else {
-  _('info').innerHTML = '';
+  _('info').style.display = 'none'
  }
 }
 
 function NAPTinfo() {
- xmlhttp=new XMLHttpRequest();
+ xmlhttp = new XMLHttpRequest();
  xmlhttp.open("GET", "/NAPTinfo", false);
  xmlhttp.send();
 
  var mainArray = xmlhttp.responseText.split("|");
 
- var table="<div id='clientsdiv' style='height: 450px; overflow-y: auto;'>"
+ var table = ""
  table += "<table id='clientstable' style='border: 1px solid black;";
  table += "border-collapse: collapse; background-color: #F6F6FA'>";
  table += "<tr><th>MAC</th><th>IP</th><th>Device</th></tr>"
@@ -151,54 +197,50 @@ function NAPTinfo() {
  for (var i = 0; i < mainArray.length - 1; i++) {
   var fields = mainArray[i].split(";");
   if (fields[0] == 'NTPTime'){
-   _("time").innerHTML =fields[1];
+   _("time").innerHTML = fields[1];
   } else if (fields[0] == 'Count'){
-   _("detailsheader").innerHTML = "<h3>"+fields[1]+" Clients<h3>";
+   _("naptcountheader").innerHTML = "<h3>" + fields[1] + " Clients<h3>";
   } else {
-   table = table + "<tr>"
-   table = table + "<td>"+fields[1]+"</td>"
-   table = table + "<td>"+fields[0]+"</td>"
-   table = table + "<td nowrap align='center'>"+fields[2]+"</td>"
+   table += "<tr>"
+   table += "<td>" + fields[1] + "</td>"
+   table += "<td>" + fields[0] + "</td>"
+   table += "<td nowrap align='center'>" + fields[2] + "</td>"
    table += "</tr>"
   }
  }
- if (mainArray.length >3) {
-  table +=  "</table></div>"
-  _("details").innerHTML = table;
-  _("clientsdiv").style.width = (_("clientstable").offsetWidth) +"px";
-  scaleMe("clientsdiv")
+ if (mainArray.length > 3) {
+  table +=  "</table>"
+  _("napttable").innerHTML = table;
  } else {
-  _("details").innerHTML = "";
+  _("napttable").innerHTML = "";
  }
 }
 
-window.addEventListener('orientationchange',
- function() { scaleMe("clientsdiv");}
-);
-
-function scaleMe(div) {
- if (isMobileDevice()) {
-  var divwidth = _(div).style.width;
-  divwidth = divwidth.substring(0, divwidth.length - 2);
-  document.body.style.zoom = Math.round(screen.width / divwidth * 95) / 100 ;
+function updateScaleFactor() {
+ const vh = window.innerHeight; // Get viewport height
+ const vw = window.innerWidth; // Get viewport width
+ if (vh > vw) { // If in portrait mode (height > width)
+  const scaleFactor = (vh + 200) / 1000; // Calculate scale factor based on height
+  document.documentElement.style.setProperty('--scale-factor', scaleFactor); // Set CSS variable for scale factor
+  document.body.style.overflow = 'hidden'; // Disable scrolling in portrait mode
+  document.body.style.height = '100vh'; // Set body height to 100% of viewport height
+  document.body.style.display = 'flex'; // Use flexbox layout
+  document.body.style.justifyContent = 'center'; // Center content horizontally
+//  document.body.style.alignItems = 'center'; // Center content vertically
+  document.querySelector('.container').classList.remove('scrollable'); // Remove scrolling class from container
+  window.scrollTo(0, 0); // Scroll to the top
+ } else { // If in landscape mode (width >= height)
+  document.documentElement.style.setProperty('--scale-factor', 1); // Reset scale factor to 1 (no scaling)
+  document.body.style.overflow = 'auto'; // Enable scrolling in landscape mode
+  document.body.style.height = 'auto'; // Set body height to auto
+  document.body.style.display = 'block'; // Use block layout
+  document.body.style.justifyContent = 'unset'; // Reset horizontal alignment
+//  document.body.style.alignItems = 'unset'; // Reset vertical alignment
+  document.querySelector('.container').classList.add('scrollable'); // Add scrolling class to container
  }
 }
-
-function isMobileDevice() {
- const devices = [
-  "Android",
-  "webOS",
-  "iPhone",
-  "iPad",
-  "iPod",
-  "BlackBerry",
-  "IEMobile",
-  "Opera Mini"
- ];
-// The 'i' flag is used to make the regex case-insensitive.
- const teststr = new RegExp(devices.join('|'), 'i');
- return teststr.test(navigator.userAgent);
-}
+window.addEventListener('resize', updateScaleFactor); // Update scale factor on window resize
+window.addEventListener('load', updateScaleFactor); // Update scale factor when page loads
 </script>
 </body>
 </html>

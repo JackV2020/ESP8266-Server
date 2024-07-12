@@ -25,6 +25,20 @@ The lwip is part of the esp8266 core for Arduino environment.
 NAPT.h is the file which goes with this NAPT.ino
 
 ---------------------------------------------------------------------------- */ 
+/*
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "NAPT_RNAT_debug1 && Serial.print..." 
+    "NAPT_RNAT_debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
+*/
+
+bool NAPT_RNAT_debug1 = true; // debug messages type 1
+//bool NAPT_RNAT_debug2 = true; // debug messages type 2
 
 #include <lwip/napt.h>
 #include <lwip/dns.h>
@@ -187,7 +201,7 @@ void NAPT_RNAT_readReverseNATRules() {
       separatorIndex = line.indexOf('|');      
       Internal_Port = line.substring(0, separatorIndex).toInt();
 
-      _SERIAL_PRINTLN(F(" ... Reverse NAT: ")+protocol+F(" port ")+String(External_Port) 
+      NAPT_RNAT_debug1 && Serial.println(F(" ... Reverse NAT: ")+protocol+F(" port ")+String(External_Port) 
                   +F(" to ")+Internal_IP.toString()+F(" port ")+String(Internal_Port));
 
       if (protocol == F("TCP")) { 
@@ -211,7 +225,7 @@ void NAPT_RNAT_init(String& ssid, String& pass, String& net, String& DNS) {
   NAPTnet = net;
   NAPTDNS = DNS;
 
-  _SERIAL_PRINTLN(F("Configuring NAPT and RNAT..."));
+  NAPT_RNAT_debug1 && Serial.println(F("Configuring NAPT and RNAT..."));
 
   if (!LittleFS.exists(NAPT_RNAT_NAPTReverseNATPath)) {
     File file = LittleFS.open(NAPT_RNAT_NAPTReverseNATPath, "w");
@@ -268,23 +282,23 @@ void NAPT_RNAT_init(String& ssid, String& pass, String& net, String& DNS) {
   NAPTDNSIP = String(ip4_addr1(&ip)) + F(".") + String(ip4_addr2(&ip)) + 
     F(".")  + String(ip4_addr3(&ip)) + F(".") + String(ip4_addr4(&ip));
 
-  _SERIAL_PRINTF_P1(PSTR(" ... first heap before napt init: %d\n"),
+  NAPT_RNAT_debug1 && Serial.printf_P(PSTR(" ... first heap before napt init: %d\n"),
    ESP.getFreeHeap());
   err_t ret = ip_napt_init(IP_NAPT_VALUE, IP_PORTMAP_VALUE);
-  _SERIAL_PRINTF_P4(PSTR(" ... ip_napt_init(%d,%d): ret=%d (OK=%d)\n"),
+  NAPT_RNAT_debug1 && Serial.printf_P(PSTR(" ... ip_napt_init(%d,%d): ret=%d (OK=%d)\n"),
      IP_NAPT_VALUE, IP_PORTMAP_VALUE, (int)ret, (int)ERR_OK);
 
   if (ret == ERR_OK) {
     ret = ip_napt_enable_no(SOFTAP_IF, 1);
-    _SERIAL_PRINTF_P2(PSTR(" ... ip_napt_enable_no(1): ret=%d (OK=%d)\n"),
+    NAPT_RNAT_debug1 && Serial.printf_P(PSTR(" ... ip_napt_enable_no(1): ret=%d (OK=%d)\n"),
       (int)ret, (int)ERR_OK);
-    if (ret == ERR_OK) { _SERIAL_PRINTLN(F(" ... WiFi Network '") + 
+    if (ret == ERR_OK) { NAPT_RNAT_debug1 && Serial.println(F(" ... WiFi Network '") + 
       WiFi.softAPSSID() + F("' with password '") + NAPTpass +
       F("' is now NAPTed behind '") + CfgMgrWiFissid + F("'")); }
   }
-  _SERIAL_PRINTF_P1(PSTR(" ... first heap after napt init:  %d\n"),
+  NAPT_RNAT_debug1 && Serial.printf_P(PSTR(" ... first heap after napt init:  %d\n"),
     ESP.getFreeHeap());
-  if (ret != ERR_OK) { _SERIAL_PRINTLN(F(" ... NAPT initialization failed")); }
+  if (ret != ERR_OK) { NAPT_RNAT_debug1 && Serial.println(F(" ... NAPT initialization failed")); }
 
   NAPT_RNAT_readReverseNATRules();
 }
@@ -295,7 +309,7 @@ void NAPT_RNAT_init(String& ssid, String& pass, String& net, String& DNS) {
 
 void NAPT_RNAT_ConfigureWebServer(AsyncWebServer &server) {
 
-  _SERIAL_PRINTLN(F("Configuring NAPT Web Page..."));
+  NAPT_RNAT_debug1 && Serial.println(F("Configuring NAPT Web Page..."));
 
   server.on("/NAPTClients", HTTP_GET, [](AsyncWebServerRequest * request) {
       request->send(200,F("text/html"), NAPT_RNAT_NAPTClientsPage, NAPT_RNAT_NAPTprocessor);
@@ -394,6 +408,7 @@ stat_info is a pointer to the first element
 
 String NAPT_RNAT_JsonInfo() {
   String json = "";
+
   json.concat(F("\" , \"napt_SSID\":\""));
   json.concat(WiFi.softAPSSID());
   json.concat(F("\" , \"napt_IP\":\""));
@@ -406,7 +421,7 @@ String NAPT_RNAT_JsonInfo() {
   json.concat(NAPTDNSIP);
   json.concat(F("\" , \"napt_ClientsInfo\":\""));
   json.concat(NAPT_RNAT_NAPTClientsInfo());
-  Serial.println("json: "+json);
+
   return json;
 }
 

@@ -35,6 +35,20 @@ Ticker.h is part of the esp8266 core for Arduino environment.
 CfgMgr.h is the file which goes with this CfgMgr.ino
 
 ---------------------------------------------------------------------------- */
+/*
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "CfgMgr_debug1 && Serial.print..." 
+    "CfgMgr_debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
+*/
+
+bool CfgMgr_debug1 = true; // debug messages type 1
+//bool CfgMgr_debug2 = true; // debug messages type 2
 
 #include <Ticker.h>
 
@@ -81,14 +95,14 @@ String CfgMgr_ReadFile( const char * path){
 
 void CfgMgr_WriteFile(const char * path, const char * message){
   File file = LittleFS.open(path, "w");
-  if(!file){ _SERIAL_PRINTLN(F("- failed to open file for writing")); return; }
-  if(!file.print(message)){ _SERIAL_PRINTLN(F("- frite failed")); }
+  if(!file){ CfgMgr_debug1 && Serial.println(F("- failed to open file for writing")); return; }
+  if(!file.print(message)){ CfgMgr_debug1 && Serial.println(F("- frite failed")); }
   file.close();
 }
 
 // =====  Save all settings and use ecryption for some.
 
-void  CfgMgrSaveConfig(String newpassCFGMGR) {
+void  CfgMgrSaveConfig() {
 
       CfgMgr_WriteFile( CfgMgrWiFihostnamePath,
         CfgMgr_sEncDec(CfgMgrWiFihostname).c_str());
@@ -99,16 +113,11 @@ void  CfgMgrSaveConfig(String newpassCFGMGR) {
           CfgMgr_sEncDec(CfgMgrWiFipass).c_str());
       };
 
-      CfgMgr_WriteFile( CfgMgrLittleFSWebuserPath,
-        CfgMgr_sEncDec(CfgMgrLittleFSWebuser).c_str());
-      if (CfgMgrLittleFSWebpassword != F("") ) {
-        CfgMgr_WriteFile( CfgMgrLittleFSWebpasswordPath,
-          CfgMgr_sEncDec(CfgMgrLittleFSWebpassword).c_str());
-      };
-
-      if (newpassCFGMGR != F("") ) {
-        CfgMgr_WriteFile( CfgMgrpassPath,
-          CfgMgr_sEncDec(newpassCFGMGR).c_str());
+      CfgMgr_WriteFile( CfgMgruserPath,
+        CfgMgr_sEncDec(CfgMgruser).c_str());
+      if (CfgMgrpassword != F("") ) {
+        CfgMgr_WriteFile( CfgMgrpasswordPath,
+          CfgMgr_sEncDec(CfgMgrpassword).c_str());
       };
 
       CfgMgr_WriteFile( CfgMgrNAPTssidPath,
@@ -128,8 +137,11 @@ void  CfgMgrSaveConfig(String newpassCFGMGR) {
 
 void  CfgMgrReadConfig() {
 
-  String tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrpassPath));
-  if (tmpstr !=F("") ) {CfgMgrpass = tmpstr ;};
+  String tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgruserPath));
+  if (tmpstr !=F("") ) {CfgMgruser = tmpstr ;};
+
+  tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrpasswordPath));
+  if (tmpstr !=F("") ) {CfgMgrpassword = tmpstr ;};
 
   tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrWiFissidPath));
   if (tmpstr !=F("") ) {CfgMgrWiFissid = tmpstr ;};
@@ -139,12 +151,6 @@ void  CfgMgrReadConfig() {
 
   tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrWiFihostnamePath));
   if (tmpstr !=F("") ) {CfgMgrWiFihostname = tmpstr ;};
-
-  tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrLittleFSWebuserPath));
-  if (tmpstr !=F("") ) {CfgMgrLittleFSWebuser = tmpstr ;}
-
-  tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrLittleFSWebpasswordPath));
-  if (tmpstr !=F("") ) {CfgMgrLittleFSWebpassword = tmpstr ;}
 
   tmpstr = CfgMgr_sEncDec(CfgMgr_ReadFile( CfgMgrNAPTssidPath));
   if (tmpstr !=F("") ) {CfgMgrNAPTssid = tmpstr ;};
@@ -164,9 +170,8 @@ void  CfgMgrReadConfig() {
 
 void CfgMgrResetConfig() {
 
-  LittleFS.remove(CfgMgrpassPath);
-  LittleFS.remove(CfgMgrLittleFSWebuserPath);
-  LittleFS.remove(CfgMgrLittleFSWebpasswordPath);
+  LittleFS.remove(CfgMgruserPath);
+  LittleFS.remove(CfgMgrpasswordPath);
 
   LittleFS.remove(F("/index.html"));
   LittleFS.remove(F("/index.html.gz"));
@@ -178,41 +183,50 @@ void CfgMgrResetConfig() {
   ESP.restart();
 }
 
+// ====== Check authentication
+
+bool CfgMgrCheckLogon(AsyncWebServerRequest *request) {
+/*
+  if (!request->authenticate(CfgMgruser.c_str(), CfgMgrpassword.c_str())) {
+    request->requestAuthentication();
+    return false;
+  }
+  return true;
+*/
+return request->authenticate(CfgMgruser.c_str(), CfgMgrpassword.c_str());
+}
+
 // =====  Configure web server
 
-void CfgMgrConfigureWebServer(AsyncWebServer &server) {
+void CfgMgrConfigureWebServer(AsyncWebServer &server, String &username, String &password) {
 
-  _SERIAL_PRINTLN(F("Configuring ConfigurationManager ..."));
+  CfgMgr_debug1 && Serial.println(F("Configuring ConfigurationManager ..."));
+
+  CfgMgruser = username;
+  CfgMgrpassword = password;  
 
   server.on("/ConfigurationManager", HTTP_ANY, CfgMgrActions); // GET and POST
 
+  // Logs you out
+
+  server.on("/CfgMgr/logout", HTTP_GET, CfgMgrLogout);
+
+}
+// ====== Logout
+
+void CfgMgrLogout(AsyncWebServerRequest *request) {
+  request->requestAuthentication();
+  request->send(401);
 }
 
 // =====  Processor for the Configuration Manager function below
 
 String CfgMgrProcessor(const String& var) {
 
-  if (var == F("LANIP")) {
-    if (WiFi.status() == WL_CONNECTED) {
-      return (F("My IP address on ") + WiFi.SSID() +
-              F(" is ") + WiFi.localIP().toString());
-    } else {
-      return F("Connect to WiFi and find the IP of this device on this page.");
-    }
-  }
-
-  if (var == F("INFOIPADDRESS")) {
-    if (WiFi.status() == WL_CONNECTED) {
-      return (WiFi.localIP().toString());
-    } else {
-      return F("192.168.4.1");
-    }
-  }
-
   if (var == F("CfgMgrWiFihostname"))    { return CfgMgrWiFihostname;  }
   if (var == F("CfgMgrWiFissid"))        { return CfgMgrWiFissid; }
 
-  if (var == F("CfgMgrLittleFSWebuser")) { return CfgMgrLittleFSWebuser; }
+  if (var == F("CfgMgruser"))            { return CfgMgruser; }
 
   if (var == F("CfgMgrNAPTssid"))        { return CfgMgrNAPTssid; }
   if (var == F("CfgMgrNAPTnet"))         { return CfgMgrNAPTnet; }
@@ -225,19 +239,11 @@ String CfgMgrProcessor(const String& var) {
 
 void CfgMgrActions(AsyncWebServerRequest *request) {
 
-  int params = request->params();
-  if(params == 0){ // There is a GET so show the Configuration Management page
-      request->send(200, "text/html", CfgMgr_html, CfgMgrProcessor);
-  } else {  // This is the POST of the Configuration Management page
-    String passCFGMGR, newpassCFGMGR;
-    for(int i=0;i<params;i++){
-      const AsyncWebParameter* p = request->getParam(i);
-      if(p->isPost()){
-        // HTTP POST passCFGMGR value
-        if (p->name() == F("passCFGMGR")) { passCFGMGR = p->value().c_str(); }
-      }
-    }
-    if (passCFGMGR == CfgMgrpass) { // passCFGMGR == right password
+  if (CfgMgrCheckLogon(request)) {
+    int params = request->params();
+    if(params == 0){ // There is a GET so show the Configuration Management page
+        request->send(200, "text/html", CfgMgr_html, CfgMgrProcessor);
+    } else {  // This is the POST of the Configuration Management page
       for(int i=0;i<params;i++){
         const AsyncWebParameter* p = request->getParam(i);
         if(p->isPost()){
@@ -248,12 +254,10 @@ void CfgMgrActions(AsyncWebServerRequest *request) {
             { CfgMgrWiFissid            = p->value().c_str(); }
           if (p->name() == F("CfgMgrWiFipass"))
             { CfgMgrWiFipass            = p->value().c_str(); }
-          if (p->name() == F("CfgMgrLittleFSWebuser"))
-            { CfgMgrLittleFSWebuser     = p->value().c_str(); }
-          if (p->name() == F("CfgMgrLittleFSWebpassword"))
-            { CfgMgrLittleFSWebpassword = p->value().c_str(); }
-          if (p->name() == F("newpassCFGMGR"))
-            { newpassCFGMGR             = p->value().c_str(); }
+          if (p->name() == F("CfgMgruser"))
+            { CfgMgruser                = p->value().c_str(); }
+          if (p->name() == F("CfgMgrpassword"))
+            { CfgMgrpassword            = p->value().c_str(); }
           if (p->name() == F("CfgMgrNAPTssid"))
             { CfgMgrNAPTssid            = p->value().c_str(); }
           if (p->name() == F("CfgMgrNAPTpass"))
@@ -265,13 +269,13 @@ void CfgMgrActions(AsyncWebServerRequest *request) {
         }
       }
 // Save data and restart
-      CfgMgrSaveConfig(newpassCFGMGR);
+      CfgMgrSaveConfig();
       request->send(200, "text/html", CfgMgr_Saved);
       CfgMgrRestartTicker.attach(1, ESP.restart);
-    } else {
-// Wrong password so send back to CfgMgr screen
-      request->send(200, "text/html", CfgMgr_Wrong_Password);
     }
+  } else {
+    CfgMgr_debug1 && Serial.println(F("Authentication Failed"));
+    return request->requestAuthentication();
   }
 }
 

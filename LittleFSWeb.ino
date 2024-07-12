@@ -32,6 +32,21 @@ LittleFS.h is part of the esp8266 core for Arduino environment.
 LittleFSWeb.h is the file which goes with this LittleFSWeb.ino
 
 ---------------------------------------------------------------------------- */
+/*
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "LFSW_debug1 && Serial.print..." 
+    "LFSW_debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
+*/
+
+bool LFSW_debug1 = true; // debug messages type 1
+bool LFSW_debug2 = false; // debug messages type 2 (full directory listing)
+bool LFSW_debug3 = true; // debug messages type 3 (file upload/save/copy counters)
 
 #include <LittleFS.h>
 #include "LittleFSWeb.h"
@@ -53,23 +68,16 @@ bool LittleFSCopyStatus = false;
 bool LittleFSWebEditFileOpen = false;
 File LittleFSWebEditFile;
 
-// ------------------------------------------------------- Initialise Web Server
-
-// ====== LittleFSWebinit (use username and password as set in main app)
-
-void LittleFSWebinit(String &username, String &password) {
-
-  LittleFSWebuser = username;
-  LittleFSWebpassword = password;
-}
-
 // -------------------------------------------------------- Configure Web Server
 
 // ====== Configure web server
 
-void LittleFSWebConfigureWebServer(AsyncWebServer &server) {
+void LittleFSWebConfigureWebServer(AsyncWebServer &server, String &username, String &password) {
 
-  _SERIAL_PRINTLN(F("Configuring LittleFSWeb ..."));
+  LFSW_debug1 && Serial.println(F("Configuring LittleFSWeb ..."));
+
+  LittleFSWebuser = username;
+  LittleFSWebpassword = password;
 
   // ----- Put LittleFSWeb.html on web server when it does not exist.
 
@@ -162,20 +170,24 @@ void LittleFSWeb_ClearDir(const char *path) {
     } else {
       LittleFS.remove(String(path) + F("/") + dir.fileName());
     }
+/*
+When you have 'a lot of' files this recursive procedure takes too long
+and the software watchdog will cick you out resulting in a crash
+ESP.wdtFeed(); resets the counter of the software wachtdog
+*/
+    ESP.wdtFeed();
   }
   LittleFS.rmdir(String(path));
 }
 
 // ====== Check authentication
 
-bool LittleFSWebCheckLogon(AsyncWebServerRequest *request, bool log) {
-  // used by server.on functions to decide whether a user has logged on
-  // log is false for file upload and save functions to avoid massive logging
-  bool state = request->authenticate(
-    LittleFSWebuser.c_str(),
-    LittleFSWebpassword.c_str());
-  if (log && (!state)) { _SERIAL_PRINTLN(F("Is not authenticated")); }
-  return state;
+bool LittleFSWebCheckLogon(AsyncWebServerRequest *request) {
+  if (!request->authenticate(LittleFSWebuser.c_str(), LittleFSWebpassword.c_str())) {
+    request->requestAuthentication();
+    return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------- LittleFSWeb web services
@@ -190,18 +202,18 @@ void LittleFSWebLogout(AsyncWebServerRequest *request) {
 // ====== Format
 
 void LittleFSWebFormat(AsyncWebServerRequest *request) {
-  if (LittleFSWebCheckLogon(request, true)) {
+  if (LittleFSWebCheckLogon(request)) {
     if (request->hasParam(F("name")) && request->hasParam(F("action"))) {
       const char *name = request->getParam(F("name"))->value().c_str();
       const char *action = request->getParam(F("action"))->value().c_str();
       if ((strcmp(name, "Format") == 0) && (strcmp(action, "format") == 0)) {
         LittleFS.format();
         if (LittleFS.begin()) {
-          _SERIAL_PRINTLN(F(" LittleFS Formatted !!"));
+          LFSW_debug1 && Serial.println(F(" LittleFS Formatted !!"));
           request->send(200, F("text/plain"),
                         F("LittleFS Formatted"));
         } else {
-          _SERIAL_PRINTLN(F(" LittleFS Format Failed !!"));
+          LFSW_debug1 && Serial.println(F(" LittleFS Format Failed !!"));
           request->send(400, F("text/plain"),
                         F("ERROR: LittleFS Format Failed !!"));
         }
@@ -211,7 +223,7 @@ void LittleFSWebFormat(AsyncWebServerRequest *request) {
                     F("ERROR: name and action params required"));
     }
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
     return request->requestAuthentication();
   }
 }
@@ -225,11 +237,11 @@ uint32_t LittleFSWeb_bytes;  // total bytes used
 String LittleFSWebFileList;  // The list with all info
 
 void LittleFSWebListFiles(AsyncWebServerRequest *request) {
-  if (LittleFSWebCheckLogon(request, true)) {
+  if (LittleFSWebCheckLogon(request)) {
     LittleFSWebCreateFileList("/", "|__", true);
     request->send(200, "text/html", LittleFSWebFileList);
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
     request->requestAuthentication();
   }
 }
@@ -238,7 +250,7 @@ void LittleFSWebListFiles(AsyncWebServerRequest *request) {
 
 void LittleFSWebCreateFileList(String path, String indent, bool level0) {
   if (level0) {
-    _SERIAL_PRINTF_P1(PSTR("\nListing contents for '%s'...\n"), path);
+    LFSW_debug1 && Serial.printf_P(PSTR("\nListing contents for '%s'...\n"), path);
     LittleFSWeb_dirs = 0;
     LittleFSWeb_files = 0;
     LittleFSWeb_bytes = 0;
@@ -249,16 +261,16 @@ void LittleFSWebCreateFileList(String path, String indent, bool level0) {
     if (LittleFSWebFileList != "") { LittleFSWebFileList.concat("|"); }
     LittleFSWebFileList.concat(path);
     LittleFSWebFileList.concat(dir.fileName());
-    if (dir.isDirectory()) {
-      _SERIAL_PRINTF_P2(PSTR("%s%s\n"),
+    if (dir.isDirectory()) { // Directory
+      LFSW_debug2 && Serial.printf_P(PSTR("%s%s\n"),
                         path.c_str(),
                         dir.fileName().c_str());
       ++LittleFSWeb_dirs;
       LittleFSWebFileList.concat(F(",[Dir]"));
       LittleFSWebCreateFileList(path + dir.fileName() + F("/"),
                                 indent + indent, false);
-    } else {
-      _SERIAL_PRINTF_P2(PSTR("%-40s %+10s\n"),
+    } else { // File
+      LFSW_debug2 && Serial.printf_P(PSTR("%-40s %+10s\n"),
                         (path + dir.fileName()).c_str(),
                         LittleFSWebFileSize(dir.fileSize()));
       ++LittleFSWeb_files;
@@ -266,6 +278,7 @@ void LittleFSWebCreateFileList(String path, String indent, bool level0) {
       LittleFSWebFileList.concat(LittleFSWebFileSize(dir.fileSize()));
     }
     LittleFSWeb_bytes = LittleFSWeb_bytes + (uint32_t)dir.fileSize();
+    ESP.wdtFeed();
   }
   if (level0) {
     LittleFSWebFileList.concat(F("|Counts,"));
@@ -292,18 +305,18 @@ void LittleFSWebCreateFileList(String path, String indent, bool level0) {
       LittleFSWebFileList.concat(F("Not Copying"));
     }
 
-    _SERIAL_PRINTF_P2(PSTR("%+40s %+10s\n"),
+    LFSW_debug1 && Serial.printf_P(PSTR("%+40s %+10s\n"),
                       (String(LittleFSWeb_dirs) + F(" Dirs; ")
                        + String(LittleFSWeb_files) + F(" Files > "))
                         .c_str(),
                       (LittleFSWebFileSize(LittleFSWebFsSize('u'))).c_str());
-    _SERIAL_PRINTF_P2(PSTR("%+40s %+10s\n"),
+    LFSW_debug1 && Serial.printf_P(PSTR("%+40s %+10s\n"),
                       String(F(" Available > ")).c_str(),
                       (LittleFSWebFileSize(LittleFSWebFsSize('f'))).c_str());
-    _SERIAL_PRINTF_P2(PSTR("%+40s %+10s\n\n"),
+    LFSW_debug1 && Serial.printf_P(PSTR("%+40s %+10s\n"),
                       String(F(" Total > ")).c_str(),
                       (LittleFSWebFileSize(LittleFSWebFsSize('t'))).c_str());
-    _SERIAL_PRINTF_P1(PSTR("Listing complete for '%s'\n"), path);
+    LFSW_debug1 && Serial.printf_P(PSTR("Listing complete for '%s'\n"), path);
   }
 }
 
@@ -316,7 +329,7 @@ String LittleFSWebFileSize(const size_t bytes) {
 // ====== Directory : new and delete
 
 void LittleFSWeb_Dir_New_Del(AsyncWebServerRequest *request) {
-  if (LittleFSWebCheckLogon(request, true)) {
+  if (LittleFSWebCheckLogon(request)) {
 
     const char *dirName = request->getParam(F("name"))->value().c_str();
     const char *dirAction = request->getParam(F("action"))->value().c_str();
@@ -373,7 +386,7 @@ void LittleFSWeb_Dir_New_Del(AsyncWebServerRequest *request) {
       }
     }
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
     return request->requestAuthentication();
   }
 }
@@ -381,7 +394,7 @@ void LittleFSWeb_Dir_New_Del(AsyncWebServerRequest *request) {
 // ====== File new, copy, delete, rename and directory rename.
 
 void LittleFSWeb_New_Copy_Del_Ren(AsyncWebServerRequest *request) {
-  if (LittleFSWebCheckLogon(request, true)) {
+  if (LittleFSWebCheckLogon(request)) {
     if (request->hasParam(F("name")) && request->hasParam(F("action"))) {
       const char *fileName = request->getParam(F("name"))->value().c_str();
       const char *fileAction = request->getParam(F("action"))->value().c_str();
@@ -414,8 +427,8 @@ void LittleFSWeb_New_Copy_Del_Ren(AsyncWebServerRequest *request) {
           size_t filesize = file.size();
           file.close();
 
-          //_SERIAL_PRINTLN("Size : "+String(filesize ));
-          //_SERIAL_PRINTLN("Free : "+String(LittleFSWebFsSize('f') ));
+          //LFSW_debug1 && Serial.println("Size : "+String(filesize ));
+          //LFSW_debug1 && Serial.println("Free : "+String(LittleFSWebFsSize('f') ));
           if (filesize < LittleFSWebFsSize('f')) {
             String newname = fileActionStr.substring(5);
             // check name length
@@ -507,39 +520,39 @@ void LittleFSWeb_New_Copy_Del_Ren(AsyncWebServerRequest *request) {
         F("<font color=red>ERROR: name and action params required</font>"));
     }
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
   }
 }
 
 // ====== File Upload : Set folder to upload to
 
 String LittleFSWebUploadDirectory = "/";  // Default to root folder
+bool upload_allowed = false;
 
 void LittleFSWebUploadSetDirectory(AsyncWebServerRequest *request) {
-  if (LittleFSWebCheckLogon(request, true)) {
+  if (LittleFSWebCheckLogon(request)) {
     if (request->hasParam(F("name"))) {
       LittleFSWebUploadDirectory = request->getParam(F("name"))->value();
-      _SERIAL_PRINTLN(F("LittleFSWebUploadDirectory: ")
+      LFSW_debug1 && Serial.println(F("LittleFSWebUploadDirectory: ")
                       + LittleFSWebUploadDirectory);
+      upload_allowed = true;
       request->send(200, F("text/plain"), String(LittleFSWebFsSize('f')));
     } else {
       request->send(400, F("text/plain"), F("ERROR: directory name required"));
     }
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
     return request->requestAuthentication();
   }
 }
 
 // ====== File Upload : Handle file upload
 
-// ICACHE_RAM_ATTR
-
 void LittleFSWebUploadFile(
   AsyncWebServerRequest *request, String filename, size_t index,
   uint8_t *data, size_t len, bool final) {
-  // make sure authenticated before allowing upload
-  if (LittleFSWebCheckLogon(request, false)) {
+    // upload_allowed is true when "/LittleFSWeb/setUploadDirectory" succeeded
+  if (upload_allowed) { 
     // check name length
     String newnameShort;
     if (filename.lastIndexOf(F("/")) == -1) {
@@ -557,7 +570,7 @@ void LittleFSWebUploadFile(
       // Receive the file
 
       if (!index) {  // Open file and remember file handle in request
-        _SERIAL_PRINTLN(F("Uploading  : ")
+        LFSW_debug1 && Serial.println(F("Uploading  : ")
                         + LittleFSWebUploadDirectory + String(filename));
         request->_tempFile = LittleFS.open(
           LittleFSWebUploadDirectory + filename, "w");
@@ -565,7 +578,7 @@ void LittleFSWebUploadFile(
 
       if (len) {  // We receive some data so add that to the open file
         request->_tempFile.write(data, len);
-        _SERIAL_PRINTLN(F("Uploading : ") + LittleFSWebUploadDirectory
+        LFSW_debug3 && Serial.println(F("Uploading : ") + LittleFSWebUploadDirectory
                         + String(filename) + F(" index = ")
                         + String(index) + F(" len = ") + String(len));
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
@@ -573,15 +586,17 @@ void LittleFSWebUploadFile(
 
       // We received the last part
       if (final) {
-        _SERIAL_PRINTLN(F("Uploaded  : ")
+        LFSW_debug1 && Serial.println(F("Uploaded  : ")
                         + LittleFSWebUploadDirectory + String(filename)
                         + F(", size: ") + String(index + len));
         request->_tempFile.close();
         request->redirect(F("/"));
+        digitalWrite(LED_BUILTIN,1);
+        upload_allowed = false;
       }
     }
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Use /LittleFSWeb/setUploadDirectory before upload"));
     return request->requestAuthentication();
   }
 }
@@ -601,11 +616,12 @@ int editorFileSize;
 String editorSessionID="aaaaaaa";
 String runningSessionID = "bbbbbbbb";
 bool editorLastSaveOke = false; // Is true when last save is ok.
+
 void LittleFSWebSaveFile(
   AsyncWebServerRequest *request, String filename, size_t index,
   uint8_t *data, size_t len, bool final) {
 
-  if (LittleFSWebCheckLogon(request, false)) {
+  if (LittleFSWebCheckLogon(request)) {
 
     // parameter 'String filename' = "blob" ; filename = 'param' filename
     int params = request->params();
@@ -618,12 +634,12 @@ void LittleFSWebSaveFile(
         if (p->name() == F("fileSize")) { editorFileSize = p->value().toInt(); }
       }
     }
-    // _SERIAL_PRINTLN("runningSessionID: "+runningSessionID+" editorSessionID: "+editorSessionID);
+    // LFSW_debug1 && Serial.println("runningSessionID: "+runningSessionID+" editorSessionID: "+editorSessionID);
     if (!LittleFSWebEditFileOpen || (runningSessionID != editorSessionID)) {
       runningSessionID = editorSessionID;
-      _SERIAL_PRINTF_P1(PSTR("File Save Start:     %s\n"), filename.c_str());
-      _SERIAL_PRINTLN("editorSessionID: "+editorSessionID);
-      _SERIAL_PRINTLN("editorFileSize: "+String(editorFileSize));
+      LFSW_debug1 && Serial.printf_P(PSTR("File Save Start:     %s\n"), filename.c_str());
+      LFSW_debug1 && Serial.println("editorSessionID: "+editorSessionID);
+      LFSW_debug1 && Serial.println("editorFileSize: "+String(editorFileSize));
 
       if (LittleFSWebEditFileOpen) { LittleFSWebEditFile.close();}
 
@@ -636,7 +652,11 @@ void LittleFSWebSaveFile(
       LittleFSWebSaveFileSize += len;
     }
 
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
     for (size_t i = 0; i < len; i++) {
+      LFSW_debug3 && (i==0) && Serial.println(F("Saving : ")+filename + F(" index = ")
+                        + String(index) + F(" len = ") + String(len));
       LittleFSWebEditFile.write(data[i]);
       request->_tempFile.write(data[i]);
     }
@@ -653,18 +673,19 @@ void LittleFSWebSaveFile(
       }
 
       if (LastChunk) {  // this is the last part of the last chunk
-        _SERIAL_PRINTF_P2(
+        LFSW_debug1 && Serial.printf_P(
           PSTR("File Save Completed: %s, %u Bytes\n"),
           filename.c_str(), LittleFSWebSaveFileSize);
         LittleFSWebEditFile.close();
         LittleFSWebEditFileOpen = false;
         editorLastSaveOke = (editorFileSize == LittleFSWebSaveFileSize);
         LittleFS.rename(editorSessionID+".txt", filename.c_str());
+        digitalWrite(LED_BUILTIN,1);
       }
     }
 
   } else {
-    _SERIAL_PRINTLN(F(" Authentication Failed"));
+    LFSW_debug1 && Serial.println(F("Authentication Failed"));
     return request->requestAuthentication();
   }
 }
@@ -738,7 +759,7 @@ void LittleFSWeb_CopyFileStateMachine() {
 
   if ((!LittleFSWeb_CopyState.originalFile)
       && (LittleFSWeb_CopyState.progress == 0)) {
-    _SERIAL_PRINTLN(F("Start copy for : ")
+    LFSW_debug1 && Serial.println(F("Start copy for : ")
                     + String(LittleFSWeb_CopyState.pathfrom)
                     + F(" to ") + String(LittleFSWeb_CopyState.pathto));
     LittleFSWeb_CopyState.progress = 1;
@@ -747,7 +768,7 @@ void LittleFSWeb_CopyFileStateMachine() {
     LittleFSWeb_CopyState.originalFile =
       LittleFS.open(LittleFSWeb_CopyState.pathfrom.c_str(), "r");
     if (!LittleFSWeb_CopyState.originalFile) {
-      _SERIAL_PRINTLN(F("- failed to open file for reading ")
+      LFSW_debug1 && Serial.println(F("- failed to open file for reading ")
                       + String(LittleFSWeb_CopyState.pathfrom));
       return;
     }
@@ -756,7 +777,7 @@ void LittleFSWeb_CopyFileStateMachine() {
     LittleFSWeb_CopyState.newFile =
       LittleFS.open(LittleFSWeb_CopyState.pathto.c_str(), "w");
     if (!LittleFSWeb_CopyState.newFile) {
-      _SERIAL_PRINTLN(F("- failed to create new file ")
+      LFSW_debug1 && Serial.println(F("- failed to create new file ")
                       + String(LittleFSWeb_CopyState.pathto));
       LittleFSWeb_CopyState.originalFile.close();
       return;
@@ -773,13 +794,14 @@ void LittleFSWeb_CopyFileStateMachine() {
     LittleFSWeb_CopyState.bytescopied += bytesRead;
     // Do not use the next line in real production.
     // Large files cause a lot of overhead.
-    // _SERIAL_PRINTLN(F("Copied bytes: ") + String(bytesRead));
+     LFSW_debug3 && Serial.println(F("Copied bytes: ") + String(bytesRead));
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   } else {
 
     // Everything was read and copied so we finished the job
     if (LittleFSWeb_CopyState.progress == 1) {
       // Close files and reset state
-      _SERIAL_PRINTLN(
+      LFSW_debug1 && Serial.println(
         F("Copied: ") + String(LittleFSWeb_CopyState.bytescopied)
         + F(" bytes for ") + String(LittleFSWeb_CopyState.pathfrom)
         + F(" to ") + String(LittleFSWeb_CopyState.pathto));
@@ -793,6 +815,7 @@ void LittleFSWeb_CopyFileStateMachine() {
     } else {
       LittleFSWeb_CopyState.progress = 0;
       LittleFSCopyStatus = false;  // copy is finished
+      digitalWrite(LED_BUILTIN,1);
       LittleFSWeb_CopyFileTicker.detach();
     }
   }

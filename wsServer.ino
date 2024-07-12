@@ -46,12 +46,31 @@ wsServer.ino : Implement Websocket Server with 2 applications and 3 examples.
 
 // ---------------------------------------------------------------- The examples
 
+/*
+
+  I use logicals to enable/disable Serial.print... statements
+
+ This means you can find statements like   
+    "wss_debug0 && Serial.print..." 
+    "wss_debug2 && Serial.print..." 
+
+  These logocals are local to each .ino section
+
+*/
+
+bool wss_debug0 = true; // debug messages type 0 general
+bool wss_debug1 = true; // debug messages type 1 app GPIO
+bool wss_debug2 = true; // debug messages type 2 app DataStore
+bool wss_debug3 = true; // debug messages type 2 app Email ( not there yet )
+
 #include "wsClientDataStore.html.h"
 #include "wsClientDataStore.ino.h"
+#include "wsClientDataStore2.ino.h"
 #include "wsClientGPIOs.html.h"
 
 #define wsClientDataStoreHTMLPath "/zExamples/wsClientDataStore.html"
 #define wsClientDataStoreINOPath "/zExamples/wsClientDataStore.ino"
+#define wsClientDataStoreINOPath2 "/zExamples/wsClientDataStore2.ino"
 #define wsClientGPIOsHTMLPath "/zExamples/wsClientGPIOs.html"
 
 // ------------------------------------------------------------ WebSocket Server
@@ -89,11 +108,15 @@ std::map<AsyncWebSocketClient*, int> wsServerClientGroups;
 // Function to send updates to specific group
 
 IRAM_ATTR void wsServerUpdateGroup(int group, const String& message) {
-  /*
+/*
+  Pseudo code :
+
   for (each 'index' + 'int value' in wsServerClientGroups ) :
     if (2nd element is group number) :
       send message to 1st element
+
 */
+
   for (auto const& clientPair : wsServerClientGroups) {
     if (clientPair.second == group) {
       clientPair.first->text(message);
@@ -271,7 +294,7 @@ DataStore :
   23  - WipeData like 23||key
     removes entry from the DataStore and returns 23||key
 
-  29  - ERROR like 29||ERROR: DataStore is full
+  29  - ERROR like 29||ERROR||DataStore is full
 
 */
 
@@ -287,10 +310,12 @@ char** wsDataStore;
 
 // Function to extract the key part from an array item
 String wsDataStoreGetKeyFromRow(const char* item) {
-  char* delimiterPos = strstr(item, "||");
-  if (delimiterPos != NULL) {
-    size_t keyLength = delimiterPos - item;
-    return String(item).substring(0, keyLength);
+  if (wsServerIramHeap) {
+    char* delimiterPos = strstr(item, "||");
+    if (delimiterPos != NULL) {
+      size_t keyLength = delimiterPos - item;
+      return String(item).substring(0, keyLength);
+    }
   }
   return "";
 }
@@ -301,9 +326,9 @@ void wsDataStoreAllocateArray() {
   wsDataStore = (char**)malloc(wsDSNumRows * sizeof(char*));
   umm_set_heap_by_id(0);  // 0 UMM_HEAP_DRAM
   if (wsDataStore == NULL) {
-    _SERIAL_PRINTLN(F(" ... Failed to allocate memory for wsDataStore array"));
+    wss_debug0 && Serial.println(F(" ... Failed to allocate memory for wsDataStore array"));
   } else {
-    _SERIAL_PRINTLN(F(" ... Created wsDataStore array."));
+    wss_debug0 && Serial.println(F(" ... Created wsDataStore array."));
   }
   // Initialize all pointers to NULL
   for (size_t i = 0; i < wsDSNumRows; i++) {
@@ -326,67 +351,73 @@ void wsDataStoreDeAllocateArray() {
 */
 
 bool wsDataStoreUpdateRow(const char* newStr) {
-  String keyOfItem = wsDataStoreGetKeyFromRow(newStr);
-  int index = wsDataStoreGetIndexForKey(keyOfItem.c_str());
-  // if not found, find free position
-  if (index == -1) {
-    index = 0;
-    while ((index < wsDSNumRows) && (wsDataStore[index] != NULL)) {
-      index++;
+  if (wsServerIramHeap) {
+    String keyOfItem = wsDataStoreGetKeyFromRow(newStr);
+    int index = wsDataStoreGetIndexForKey(keyOfItem.c_str());
+    // if not found, find free position
+    if (index == -1) {
+      index = 0;
+      while ((index < wsDSNumRows) && (wsDataStore[index] != NULL)) {
+        index++;
+      }
     }
-  }
-  // Free the existing string memory if it exists
-  if (index < wsDSNumRows) {
-    free(wsDataStore[index]);
-  } else {
-    _SERIAL_PRINTLN(F("wsDataStoreUpdateRow Failed , wsDataStore is full!! "));
-    return false;
-  }
+    // Free the existing string memory if it exists
+    if (index < wsDSNumRows) {
+      free(wsDataStore[index]);
+    } else {
+      wss_debug0 && Serial.println(F("wsDataStoreUpdateRow Failed , wsDataStore is full!! "));
+      return false;
+    }
 
-  // Allocate new memory for the updated string
-  size_t length = strlen(newStr) + 1;  // +1 for the null terminator
+    // Allocate new memory for the updated string
+    size_t length = strlen(newStr) + 1;  // +1 for the null terminator
 
-  umm_set_heap_by_id(1);  // 1
-  if (ESP.getMaxFreeBlockSize() > length + 100) {
-    wsDataStore[index] = (char*)malloc(length * sizeof(char));
-    strcpy(wsDataStore[index], newStr);
-  } else {
-    _SERIAL_PRINTLN(F("Failed to allocate memory for string"));
+    umm_set_heap_by_id(1);  // 1
+    if (ESP.getMaxFreeBlockSize() > length + 100) {
+      wsDataStore[index] = (char*)malloc(length * sizeof(char));
+      strcpy(wsDataStore[index], newStr);
+    } else {
+      wss_debug0 && Serial.println(F("Failed to allocate memory for string"));
+      umm_set_heap_by_id(0);  // 0
+      return false;
+    }
+
     umm_set_heap_by_id(0);  // 0
-    return false;
-  }
-
-  umm_set_heap_by_id(0);  // 0
-  return true;
+    return true;
+  } else { return false; }
 }
 
 bool wsDSDeleteRow(char** wsDataStore, size_t wsDSNumRows, const char* key) {
-  int index = wsDataStoreGetIndexForKey(key);
-  if (index > -1) {
-    umm_set_heap_by_id(1);  // 1
-    free(wsDataStore[index]);
-    wsDataStore[index] = (char*)malloc(sizeof(char));
-    wsDataStore[index] = NULL;
-    umm_set_heap_by_id(0);  // 0
+  if (wsServerIramHeap) {
+    int index = wsDataStoreGetIndexForKey(key);
+    if (index > -1) {
+      umm_set_heap_by_id(1);  // 1
+      free(wsDataStore[index]);
+      wsDataStore[index] = (char*)malloc(sizeof(char));
+      wsDataStore[index] = NULL;
+      umm_set_heap_by_id(0);  // 0
+    }
   }
   return true;
 }
 
 // Function to find a value by key
 String wsDataStoreFindValue(const char* key) {
-  //    _SERIAL_PRINTLN("wsDataStoreFindValue"); _SERIAL_PRINTLN(key);
-  size_t keyLength = strlen(key);
-  for (size_t i = 0; i < wsDSNumRows; i++) {
-    if (wsDataStore[i] != NULL) {
-      if (strncmp(wsDataStore[i], key, keyLength) == 0
-          && wsDataStore[i][keyLength] == '|'
-          && wsDataStore[i][keyLength + 1] == '|') {
-        // Return the value part of the string
-        return String(&wsDataStore[i][keyLength + 2]);
+  if (wsServerIramHeap) {
+    //    wss_debug0 && Serial.println("wsDataStoreFindValue"); wss_debug0 && Serial.println(key);
+    size_t keyLength = strlen(key);
+    for (size_t i = 0; i < wsDSNumRows; i++) {
+      if (wsDataStore[i] != NULL) {
+        if (strncmp(wsDataStore[i], key, keyLength) == 0
+            && wsDataStore[i][keyLength] == '|'
+            && wsDataStore[i][keyLength + 1] == '|') {
+          // Return the value part of the string
+          return String(&wsDataStore[i][keyLength + 2]);
+        }
       }
     }
   }
-  //    _SERIAL_PRINTLN("wsDataStoreFindValue not found");
+  //    wss_debug0 && Serial.println("wsDataStoreFindValue not found");
   return "";  // Key not found
 }
 
@@ -410,19 +441,21 @@ int wsDataStoreGetIndexForKey(const char* key) {
 // Function to get all keys concatenated by "||"
 String wsDataStoreGetAllKeys() {
   String result = "";
-  //  for (size_t i = 0; i < wsDSNumRows; ++i) {
-  for (size_t i = 0; i < wsDSNumRows; i++) {
-    if (wsDataStore[i] != NULL) {
-      // Find the position of the "||" delimiter
-      char* delimiterPos = strstr(wsDataStore[i], "||");
-      if (delimiterPos != NULL) {
-        // Extract the key by copying characters up to the delimiter
-        size_t keyLength = delimiterPos - wsDataStore[i];
-        if (keyLength > 0) {
-          if (result.length() > 0) {
-            result += "||";
+  if (wsServerIramHeap) {
+    //  for (size_t i = 0; i < wsDSNumRows; ++i) {
+    for (size_t i = 0; i < wsDSNumRows; i++) {
+      if (wsDataStore[i] != NULL) {
+        // Find the position of the "||" delimiter
+        char* delimiterPos = strstr(wsDataStore[i], "||");
+        if (delimiterPos != NULL) {
+          // Extract the key by copying characters up to the delimiter
+          size_t keyLength = delimiterPos - wsDataStore[i];
+          if (keyLength > 0) {
+            if (result.length() > 0) {
+              result += "||";
+            }
+            result += String(wsDataStore[i]).substring(0, keyLength);
           }
-          result += String(wsDataStore[i]).substring(0, keyLength);
         }
       }
     }
@@ -432,15 +465,15 @@ String wsDataStoreGetAllKeys() {
 
 void heapinfo() {
   if (umm_get_current_heap_id() == 0) {
-    _SERIAL_PRINT(F(" ... first"));
+    wss_debug0 && Serial.print(F(" ... first"));
   } else {
-    _SERIAL_PRINT(F(" ... secnd"));
+    wss_debug0 && Serial.print(F(" ... secnd"));
   }
-  _SERIAL_PRINT(F(" heap> FreeHeap: ")
+  wss_debug0 && Serial.print(F(" heap> FreeHeap: ")
                 + String(ESP.getFreeHeap()));
-  _SERIAL_PRINT(F(" ; HeapFragmentation: ")
+  wss_debug0 && Serial.print(F(" ; HeapFragmentation: ")
                   + String(ESP.getHeapFragmentation()));
-  _SERIAL_PRINTLN(F(" ; MaxFreeBlockSize: ")
+  wss_debug0 && Serial.println(F(" ; MaxFreeBlockSize: ")
                   + String(ESP.getMaxFreeBlockSize()));
 }
 
@@ -471,7 +504,7 @@ void wsServerConfigurationWrite() {
 
 void wsServerConfigureWebSocketServer(AsyncWebServer& server) {
 
-  _SERIAL_PRINTLN(F("Configuring Web Socket Server ..."));
+  wss_debug0 && Serial.println(F("Configuring Web Socket Server ..."));
 
   wsServerConfigurationRead();
   /*
@@ -488,8 +521,8 @@ For Heap info see 10.3.2 in :
   if (wsServerIramHeap) {
     wsDataStoreAllocateArray();
   } else {
-    _SERIAL_PRINT(F(" ... To use wsDataStore... Build with MMU : "));
-    _SERIAL_PRINTLN(F("16KB cache + 48KB IRAM and 2nd Heap (shared)"));
+    wss_debug0 && Serial.print(F(" ... To use wsDataStore... Build with MMU : "));
+    wss_debug0 && Serial.println(F("16KB cache + 48KB IRAM and 2nd Heap (shared)"));
   }
   // Set GPIO modes and attach intterupts
 
@@ -525,6 +558,12 @@ For Heap info see 10.3.2 in :
     file.close();
   }
 
+  if (!LittleFS.exists(wsClientDataStoreINOPath2)) {
+    File file = LittleFS.open(wsClientDataStoreINOPath2, "w");
+    file.print(FPSTR(INOClientExampleDataStore2));
+    file.close();
+  }
+
   // Set websocket event handler
   wsServer.onEvent(wsServerOnEvent);
 
@@ -543,11 +582,11 @@ void wsServerOnEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                      AwsEventType type, void* arg, uint8_t* data, size_t len) {
   switch (type) {
     case WS_EVT_CONNECT:
-      _SERIAL_PRINTF_P2(PSTR("WebSocket client #%u connected from %s\n"),
+      wss_debug0 && Serial.printf(PSTR("WebSocket client #%u connected from %s\n"),
                         client->id(), client->remoteIP().toString().c_str());
       break;
     case WS_EVT_DISCONNECT:
-      _SERIAL_PRINTF_P1(PSTR("WebSocket client #%u disconnected\n"),
+      wss_debug0 && Serial.printf(PSTR("WebSocket client #%u disconnected\n"),
                         client->id());
       wsServerClientGroups.erase(client);
       break;
@@ -607,12 +646,12 @@ void wsServerHandleMessage(AsyncWebSocketClient* client, const String& msg) {
   String key;
   String reply;
 
-  _SERIAL_PRINTLN(F("\nReceive: ") + msg);
+  wss_debug0 && Serial.println(F("\nReceive: ") + msg);
 
   wsServerTT = wsServerGetPart(msg, 1).toInt();
   switch (wsServerTT / 10) {
     case 1:
-      //      _SERIAL_PRINTLN("-----------GPIO");
+      //      wss_debug1 && Serial.println("-----------GPIO");
       if (wsServerTT == 10) {  // 10 : asks for update
 
         // Store client's group based on initial message
@@ -644,7 +683,7 @@ void wsServerHandleMessage(AsyncWebSocketClient* client, const String& msg) {
         reply.concat(String(analogRead(A0)));
         reply.concat(SEPERATOR);
         reply.concat(String(wsServerBroadcastTickerInterval));
-        _SERIAL_PRINTLN("reply: " + reply);
+        wss_debug1 && Serial.println(F("Reply:   ") + reply);
         client->text(reply);          // 1 Single client only !!!!
       } else if (wsServerTT == 16) {  // Control ticker to broadcast A0 value
         wsServerBroadcastTickerInterval = wsServerGetPart(msg, 3).toInt();
@@ -728,18 +767,18 @@ void wsServerHandleMessage(AsyncWebSocketClient* client, const String& msg) {
           }
         }
         wsServerUpdateGroup(10, reply);
-        _SERIAL_PRINTLN(F("Reply:   ") + reply);
+        wss_debug1 && Serial.println(F("Reply:   ") + reply);
       }
       break;
     case 2:
-      //      _SERIAL_PRINTLN("-----------Handle DataStore");
+      //      wss_debug2 && Serial.println("-----------Handle DataStore");
       if (wsServerIramHeap) {
         if (wsServerTT == 20) {
           // List Keys
-          //        _SERIAL_PRINTLN("List keys");
+          wss_debug2 && Serial.println("List keys");
           reply = F("20||");
           reply.concat(wsDataStoreGetAllKeys());
-          _SERIAL_PRINTLN(reply);
+          wss_debug2 && Serial.println(F("Reply:   ") + reply);
           client->text(reply);  // 1 Single client only !!!!
 
           // Store client's group based on initial message
@@ -751,52 +790,56 @@ void wsServerHandleMessage(AsyncWebSocketClient* client, const String& msg) {
           switch (wsServerTT) {
             case 23:
               // Wipe Data
-              key = wsDataStoreGetKeyFromRow(
-                msg.substring(2 + SEPERATORSIZE).c_str());
-              //          _SERIAL_PRINTLN(F("Delete key: ")+key);
+              key = msg.substring(2 + SEPERATORSIZE);
+              wss_debug2 && Serial.println(F("Delete key: ")+key);
               wsDSDeleteRow(wsDataStore, wsDSNumRows, key.c_str());
-              _SERIAL_PRINTLN(msg);
-              wsServerUpdateGroup(20, msg);
+              reply = msg;
+              reply.concat("||Deleted");
+              wss_debug2 && Serial.println(F("Reply:   ") + reply);
+              wsServerUpdateGroup(20, reply);
               break;
             case 21:
               // Save Data
-              _SERIAL_PRINTLN(F("Row : ") + msg.substring(2 + SEPERATORSIZE));
+              wss_debug2 && Serial.println(F("Save : ") + msg.substring(2 + SEPERATORSIZE));
               if (wsDataStoreUpdateRow(
                     msg.substring(2 + SEPERATORSIZE).c_str())) {
                 reply = msg;
+                wss_debug2 && Serial.println(F("Reply:   ") + reply);
+                wsServerUpdateGroup(20, reply);
               } else {
-                reply = F("29||ERROR: DataStore is full");
+                reply = F("29||ERROR||DataStore is full");
+                wss_debug2 && Serial.println(F("Reply:   ") + reply);
+                client->text(reply);          // 1 Single client only !!!!
               }
-              _SERIAL_PRINTLN(reply);
-              wsServerUpdateGroup(20, reply);
               break;
             case 22:
               // Find Data
-              key = wsDataStoreGetKeyFromRow(
-                msg.substring(2 + SEPERATORSIZE).c_str());
-              if (key != "") {
+              key = msg.substring(2 + SEPERATORSIZE);
+              wss_debug2 && Serial.println(F("Find key: ")+key);
+              index = wsDataStoreGetIndexForKey(key.c_str());
+              if (index > -1) {
                 reply = (F("22||"));
                 reply.concat(key);
                 reply.concat(F("||"));
                 reply.concat(wsDataStoreFindValue(key.c_str()));
               } else {
-                reply = F("29||ERROR: Not found: ");
+                reply = F("29||ERROR||Not found: ");
                 reply.concat(msg);
               }
-              _SERIAL_PRINTLN(F("reply: ") + reply);
+              wss_debug2 && Serial.println(F("Reply:   ") + reply);
               client->text(reply);  // 1 Single client only !!!!
           }
           break;
         }
       } else {
-        _SERIAL_PRINT(F(" ... To use wsDataStore ... Build with MMU :"));
-        _SERIAL_PRINTLN(F("16KB cache + 48KB IRAM and 2nd Heap (shared)"));
+        wss_debug2 && Serial.print(F(" ... To use wsDataStore ... Build with MMU :"));
+        wss_debug2 && Serial.println(F("16KB cache + 48KB IRAM and 2nd Heap (shared)"));
         reply = F("20||Build with MMU option_3 16KB ... 2nd Heap (shared)");
         client->text(reply);  // 1 Single client only !!!!
       }
       break;
     case 3:
-      _SERIAL_PRINTLN(F("-----------Handle email"));
+      wss_debug3 && Serial.println(F("-----------Handle email"));
       break;
   }
 }

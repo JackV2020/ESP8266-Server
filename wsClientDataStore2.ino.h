@@ -1,35 +1,36 @@
 /* ----------------------------------------------------------------------------
 
-wsClientDataStore.ino.h
+wsClientDataStore2.ino.h
 
   An example created by wsServerConfigureWebSocketServer when it does not exist.
 
 ---------------------------------------------------------------------------- */
 
-const char INOClientExampleDataStore[] PROGMEM = R"rawliteral(/*
+const char INOClientExampleDataStore2[] PROGMEM = R"rawliteral(/*
 
 Example to save, get and delete data in the DataStore in the websocket server.
+
+I created this extra example because wsClientDataStore.ino comes with
+compiler warnings althoug it uses a library which can be installed in
+Arduino IDE via library manager.
 
 Just change 'WiFi Settings' below, compile and run.
 
 When running this example you will see some errors because data does not exist.
 This is for demo purpose. When you read the code below you will get it.
 
-This example uses ArduinoWebsockets by Gil Maimon
-Installed via library manager
+This example uses WebSocketsClient.h by Markus Sattler
+Installed via zipfile from https://github.com/Links2004/arduinoWebSockets
 
-I included the same webserver as used by the websocket server to show you can.
+I included the same webserver as used by the websocket Server to show you can.
 When you have the websocket server running you already did the next :
 Install 'ESPAsyncTCP' by dvarrel and 'ESP Async WebServer' by Me-No-Dev
 via the library manager. Note the spaces in the name 'ESP Async WebServer'
 
 */
-
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <ArduinoWebsockets.h>
-
-using namespace websockets;
+#include <WebSocketsClient.h>
 
 // ----- Control printing of console messages
 
@@ -62,9 +63,10 @@ void HomePage(AsyncWebServerRequest* request) {
 
 // ----------------------------------------------------------- WebSocket Client
 
-WebsocketsClient webSocket;
+WebSocketsClient webSocket;
 
 // ----- Websocket server details
+
 const char* host = "192.168.2.26";
 const uint16_t port = 80;
 const char* url = "/wsServer/ws";
@@ -87,21 +89,11 @@ unsigned long currentMillis;
 
 // ----- Functions to send data to the websocket server
 
-void sendListKeys() {
-  if (isConnected) {
-    String msg = F("20");
-    webSocket.send(msg);
-    debug_send && Serial.println(F("Sent listKeys request: ") + msg);
-  } else {
-    Serial.println(F("Not connected to server."));
-  }
-}
-
 void sendSaveData(String name, String value) {
   if (isConnected) {
     String msg = F("21||") + name + SEPERATOR + value;
-    webSocket.send(msg);
-    debug_send && Serial.println(F("Sent saveData request: ") + msg);
+    webSocket.sendTXT(msg);
+    debug_send&& Serial.println(F("Sent saveData request: ") + msg);
   } else {
     Serial.println(F("Not connected to server."));
   }
@@ -110,8 +102,8 @@ void sendSaveData(String name, String value) {
 void sendFindData(String name) {
   if (isConnected) {
     String msg = F("22||") + name;
-    webSocket.send(msg);
-    debug_send && Serial.println(F("Sent findData request: ") + msg);
+    webSocket.sendTXT(msg);
+    debug_send&& Serial.println(F("Sent findData request: ") + msg);
   } else {
     Serial.println(F("Not connected to server."));
   }
@@ -120,8 +112,18 @@ void sendFindData(String name) {
 void sendWipeData(String name) {
   if (isConnected) {
     String msg = F("23||") + name;
-    webSocket.send(msg);
-    debug_send && Serial.println(F("Sent wipeData request: ") + msg);
+    webSocket.sendTXT(msg);
+    debug_send&& Serial.println(F("Sent wipeData request: ") + msg);
+  } else {
+    Serial.println(F("Not connected to server."));
+  }
+}
+
+void sendListKeys() {
+  if (isConnected) {
+    String msg = F("20");
+    webSocket.sendTXT(msg);
+    debug_send&& Serial.println(F("Sent listKeys request: ") + msg);
   } else {
     Serial.println(F("Not connected to server."));
   }
@@ -154,41 +156,50 @@ String wsServerGetPart(const String& string, uint8_t part) {
   return result;
 }
 
-void onMessageCallback(WebsocketsMessage message) {
+void webSocketEventHandleResponse(const String& response) {
 
-  uint8_t wsServerTT = wsServerGetPart(message.data(), 1).toInt();
+  uint8_t wsServerTT = wsServerGetPart(response, 1).toInt();
   switch (wsServerTT) {
     case 20:
-      debug_receive && Serial.println(F("Received key list: ") + message.data());
+      debug_receive&& Serial.println(F("Received key list: ") + response);
       break;
     case 21:
-      debug_receive && Serial.println(F("Received save reply: ") + message.data());
+      debug_receive&& Serial.println(F("Received save reply: ") + response);
       break;
     case 22:
-      debug_receive && Serial.println(F("Received find reply: ") + message.data()
-                     + F("; variable: ") + wsServerGetPart(message.data(), 2)
-                     + F("; value: ") + wsServerGetPart(message.data(), 3));
+      debug_receive&& Serial.println(F("Received find reply: ") + response
+                                     + F("; variable: ") + wsServerGetPart(response, 2)
+                                     + F("; value: ") + wsServerGetPart(response, 3));
       break;
     case 23:
-      debug_receive && Serial.println(F("Received wipe confirm of: ") + message.data());
+      debug_receive&& Serial.println(F("Received wipe confirm of: ") + response);
       break;
     case 29:
-      debug_receive && Serial.println(F("Received Error: ") + message.data());
+      debug_receive&& Serial.println(F("Received Error: ") + response);
       break;
   }
 }
 
-void onEventsCallback(WebsocketsEvent event, String data) {
-  if (event == WebsocketsEvent::ConnectionOpened) {
-    isConnected = true;
-    Serial.println(F("Connected to WebSocket server!"));
-  } else if (event == WebsocketsEvent::ConnectionClosed) {
-    isConnected = false;
-    Serial.println(F("Disconnected from WebSocket server."));
- } else if (event == WebsocketsEvent::GotPing) {
-    Serial.println(F("Got a Ping!"));
-  } else if (event == WebsocketsEvent::GotPong) {
-    Serial.println(F("Got a Pong!"));
+void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
+  switch (type) {
+    case WStype_CONNECTED:
+      Serial.println(F("Connected to WebSocket server!"));
+      isConnected = true;
+      break;
+    case WStype_DISCONNECTED:
+      Serial.println(F("Disconnected from WebSocket server."));
+      isConnected = false;
+      break;
+    case WStype_TEXT:
+      {
+        // Received a text message
+        String response = (char*)payload;
+        webSocketEventHandleResponse(response);
+        break;
+      }
+    default:
+      // Other WebSocket events
+      break;
   }
 }
 
@@ -209,8 +220,7 @@ void setup() {
 
   // ----- Websocket Client
 
-  webSocket.onMessage(onMessageCallback);
-  webSocket.onEvent(onEventsCallback);
+  webSocket.onEvent(webSocketEvent);
 
   // ----- Web Server
 
@@ -229,15 +239,13 @@ void setup() {
 
 void loop() {
 
-  // ----- Check if the client is connected
+  // Continuously handle WebSocket events
+
+  webSocket.loop(); delay(500);
+
+  // Check if the client is disconnected
 
   if (isConnected) {
-
-    // ----- Let the websocket client check for incoming messages
-
-    if (webSocket.available()) {
-      webSocket.poll();
-    }
 
     // ----- Some ws DataStore testing
 
@@ -260,7 +268,7 @@ void loop() {
     currentMillis = millis();
     if (currentMillis - lastReconnectAttempt > reconnectDelay) {
       Serial.println(F("Attempting to (re)connect to WebSocket server..."));
-      webSocket.connect(host, port, url);
+      webSocket.begin(host, port, url);
       lastReconnectAttempt = currentMillis;
     }
   }

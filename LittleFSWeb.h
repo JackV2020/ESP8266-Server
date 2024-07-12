@@ -17,56 +17,174 @@ const char LittleFSWeb[] PROGMEM=R"rawliteral(<!DOCTYPE HTML>
   hint when you have an editor with a search summary pane, search for 'function'
 -->
 <head>
- <meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name='viewport' content='width=device-width, height=device-height, initial-scale=1, user-scalable=no'>
  <link rel="icon" type="image/x-icon" href="/favicon.ico">
  <meta charset="UTF-8">
  <title>LittleFSWeb</title>
  <style>
-  .rnd_btn {background-color:lightgrey;border-radius:50%;border-width:3;
-   border-color:gold;color:blue;width:80px;height:40px;text-align:center}
+  :root {
+   --scale-factor: 1;
+  }
+  .rnd_btn {
+   background-color: lightgrey;
+   border-radius: 50%;
+   border-width: 3px;
+   border-color: gold;
+   color: blue;
+   width: 100px;
+   height: 50px;
+   text-align: center;
+  }
+  body {
+   background-color: #E6E6FA;
+   margin: 0;
+   padding: 0;
+   height: 100vh;
+   display: flex;
+   justify-content: center;
+   align-items: flex-start; /* Align items to the top */
+   overflow: hidden;
+  }
+  .container {
+   text-align: center;
+   transform-origin: top;
+   transform: scale(var(--scale-factor));
+  }
+  .scrollable {
+   height: auto;
+   display: block;
+   overflow: auto;
+  }
+  .centered-content {
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   align-items: center;
+  }
+  .form-container {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+  }
+
+  .rim-only-button {
+    width: 250px;
+    height: 56px;
+    background-color: lightgrey;
+    border-width:3px;
+    border-color:gold;
+    border-radius: 50%;
+    color: blue;
+    text-align: center;
+    font-size: 16px;
+//    box-shadow: 0px 0px 15px 0px blue;
+//    box-shadow: 3px 3px 5px 0px rgba(0,0,0,0.75);
+  }
+
+  .file-input-wrapper {
+    background-color: transparent;
+    border-radius: 20px;
+    width: 250px;
+    height: 50px;
+    top: -47px;
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+  }
+
+  .file-input {
+    font-size: 100px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+  }
+
+  .file-label {
+    background-color: transparent;
+    color: blue;
+    font-size: 16px;
+    cursor: pointer;
+    display: inline-block;
+    padding: 10px 20px;
+  }
+
  </style>
+
 </head>
-<body id='body' style='background-color: #E6E6FA;' onload='listFiles()'>
-<center>
+<body id='body' onload='listFiles()'>
+ <div class="container">
+
+<!-- LittleFSWeb -->
+
+ <div style="display:block;" id="LittleFSWeb">
  <h1>LittleFSWeb</h1>
 
- <h3><p id="detailsheader"></p></h3>
-
- <div id="mainbuttons" style="display:block;">
   <a href="/"><button class="rnd_btn">Home</button></a>
   <button class="rnd_btn" onclick="refresh()">Refresh</button>
-  <button class="rnd_btn" onclick="littlefswebInfoToggle()"> Info </button>
-  <button class="rnd_btn" onclick="logout()">Logout</button>
+  <button class="rnd_btn" onclick="littlefswebInfoToggle()">Info</button>
+  <!-- button class="rnd_btn" onclick="logout()">Logout</button -->
+
+
+ <div style="display:none;" id='info'>
+<br><hr>
+<h3>With LittleFSWeb you can :</h3>
+Manage (sub)directories and files.<br>
+(use rename to move between directories.)<br><br>
+
+Build a web site with your own html files.<br>
+- Upload/create files on your web site.<br>
+- Default in any (sub)directory is index.html.<br>
+- Edit .html*, .css*, .js*, .svg, .json and .txt files.<br>
+*allow extra .proc extension to use proc_processor().<br>
+(see example 'proc_processor.html.proc').<br>
+*or extra .gz extension for gzipped files.<br>
+(gz takes precedence over uncompressed files)<br>
+- Change /index.html for your own needs<br>
+and if you want /LittleFSWeb/LittleFSWeb.html.<br>
+- Maybe create /LittleFSWeb/LittleFSWeb.html.gz.<br><br>
+
+- And when you want a clean start...Format<br>
+<h5><font color=red>This is a 'quantum' computer so...</font></h5>
+- When you upload/copy/save a 'huge' file...<br>
+your server is very, very busy for you<br>
+...just be patient and wait...<br>
+<br><hr><br>
  </div>
- <div id="editbuttons" style="display: none;">
-  <button class="rnd_btn" onclick="listFiles()">Exit</button>
-  <button class="rnd_btn" onclick="saveFile()">Save</button>
-  <button class="rnd_btn" onclick="getFile()">Reload</button>
- </div>
+ <p id="statusLittleFSWeb"></p>
 
- <p id='info'></p>
+  <div id="detailsLittleFSWeb" class="centered-content"></div><br>
 
- <p id="status"></p>
-
- <div id="mainview" style="display:block;">
-  <p id="details"></p>
   <div id="bottombuttons" style="display:none">
+
    <button class="rnd_btn" onclick="doFunction('New Directory')">New Dir</button>
    <button class="rnd_btn" onclick="doFunction('New File')">New File</button>
    <button class="rnd_btn" onclick="doFunction('Edit File')">Edit</button>
-   <button class="rnd_btn" onclick="doFunction('Copy')">Copy</button>
-   <button class="rnd_btn" onclick="doFunction('Rename')">Rename</button>
    <br>
+
+   <button class="rnd_btn" onclick="doFunction('Copy')">Copy</button>
+   <button class="rnd_btn" onclick="doFunction('Upload')">Upload</button>
+   <button class="rnd_btn" onclick="doFunction('Rename')">Rename</button>
+
+   <br>
+
    <button class="rnd_btn" style='background-color:pink;'
     onclick="doFunction('Delete')">Delete</button>
-   <button class="rnd_btn" onclick="doFunction('Upload')">Upload</button>
    <button class="rnd_btn" onclick="doFunction('Download')">Download</button>
    <button class="rnd_btn" style='background-color:pink;'
     onclick="doFunction('Format')">Format</button>
   </div>
  </div>
 
- <div id="editor" style="display: none;">
+<!-- LittleFSWeb Editor -->
+
+ <div style="display:none;"  id="LittleFSWebEditor">
+ <h1>LittleFSWeb Editor</h1>
+  <button class="rnd_btn" onclick="listFiles()">Exit</button>
+  <button class="rnd_btn" onclick="saveFile()">Save</button>
+  <button class="rnd_btn" onclick="getFile()">Reload</button>
+ <p id="statusEditor"></p>
+
   <input type="text" id="filename" name="filename" size="40"><br>
   <button class="rnd_btn" style="width:30px;height:30px;margin-top:5px;
     margin-bottom:5px;margin-right:20px;font-size:20px;font-weight:bold;"
@@ -76,10 +194,32 @@ const char LittleFSWeb[] PROGMEM=R"rawliteral(<!DOCTYPE HTML>
     onclick="setFontSize('+')">+</button><br>
   <textarea id="fileContent" name="fileContent" style =
     "height:300px;width:300px;white-space:pre;overflow:auto;font-size:100%;"
-    onclick="_('status').innerHTML='';">Editor</textarea><br><br>
+<!-- onclick="_('statusEditor').innerHTML='';"  -->
+      >Editor</textarea><br><br>
+
  </div>
 
-</center>
+<!-- LittleFSWeb Upload -->
+
+ <div style="display:none;"  id="LittleFSWebUpload">
+   <h1>LittleFSWeb Upload File(s)</h1>
+   <div>
+    <button id="rim-only-button" class="rim-only-button"></button>
+   </div>
+   <div id="file-input-wrapper" class="file-input-wrapper">
+    <input multiple type="file" name="filesToUpload" id="filesToUpload" class="file-input" required onchange="uploadFiles()">
+    <label for="filesToUpload" class="file-label">Select & Upload File(s)</label>
+   </div>
+   <br>
+   <progress id="progressTotal" value="0" max="100" style="width:300px;"></progress><br>
+   <p id="statusUpload"></p>
+   <progress id="progressFile" value="0" max="100" style="width:300px;"></progress>
+   <p id="loaded_n_total"></p>
+   <br>
+   <button class="rnd_btn" onclick="listFiles();">LittleFSWeb</button>
+ </div>
+
+ </div>
 
 <script>
 
@@ -88,6 +228,15 @@ const char LittleFSWeb[] PROGMEM=R"rawliteral(<!DOCTYPE HTML>
 // ----- Short for document.getElementById function
 function _(el) {
  return document.getElementById(el);
+}
+
+// ----- Function to switch layout
+
+function switchLayout(layout) {
+  _("LittleFSWeb").style.display = "none";
+  _("LittleFSWebEditor").style.display = "none";
+  _("LittleFSWebUpload").style.display = "none";
+  _(layout).style.display = "block";
 }
 
 // ----- Function to pause some milliseconds
@@ -100,51 +249,9 @@ function pausemillis(millis)
  while(curDate-date < millis);
 }
 
-// ----- Function to detect if this is a mobile device
-
-function isMobileDevice() {
- const devices = [
-  "Android",
-  "webOS",
-  "iPhone",
-  "iPad",
-  "iPod",
-  "BlackBerry",
-  "IEMobile",
-  "Opera Mini"
- ];
-// The 'i' flag is used to make the regex case-insensitive.
- const teststr = new RegExp(devices.join('|'), 'i');
- return teststr.test(navigator.userAgent);
-}
-
 // ------------------------------------------------------------ Editor functions
 
-// ----- Function to Show / Hide editor
-
-function editor(display) {
- var x1=_("editbuttons");
- var x2=_("editor");
- var y1=_("mainbuttons");
- var y2=_("mainview");
- if (display === "show") {
-  // prevent page reload by pull down on screen on mobile
-  body.style.overscrollBehavior='none';
-  x1.style.display="block";
-  x2.style.display="block";
-  y1.style.display="none";
-  y2.style.display="none";
- } else {
-  // enable page reload by pull down on screen on mobile
-  body.style.overscrollBehavior='auto';
-  x1.style.display="none";
-  x2.style.display="none";
-  y1.style.display="block";
-  y2.style.display="block";
- }
-}
-
-// ----- Function to increase / decrease fontsize 
+// ----- Function to increase / decrease fontsize
 
 function setFontSize(plusmin){
  var x=_('fileContent').style.fontSize.slice(0, -1) * 1;
@@ -189,7 +296,7 @@ function calculateDistance(touch1, touch2) {
 // ----- Event listener touchstart function
 
 textarea.addEventListener('touchstart', function(event) {
- _("status").innerHTML="";
+ _("statusEditor").innerHTML="";
  if (event.touches.length === 2) {
   // Store the initial touch points
   textareaInitialTouches=Array.from(event.touches);
@@ -285,7 +392,7 @@ textarea.addEventListener('keydown', function(event) {
 
 function getFile() {
  _('fileContent').value="Loading...";
- _("status").innerHTML="<font color=red>Loading...</font>";
+ _("statusEditor").innerHTML="<font color=red>Loading...</font>";
  var d=new Date();
  var h=d.getHours();
  var m=d.getMinutes();
@@ -294,8 +401,8 @@ function getFile() {
  var key="?" + h + m + s + ms;
 /*
  NOTE the extra "/LittleFSWebFetch" before the path
- this is handled by LittleFSWeb so the file is not processed
- by the proc_processor in the web server of the main app.
+ this is handled by LittleFSWeb so the file is not processed by
+ the proc_processor in the web server of the main app.
  This would process strings beween % signs and we could not edit .proc files.
 */
  const filename="/LittleFSWebFetch"+_('filename').value+key;
@@ -305,12 +412,12 @@ function getFile() {
   .then(response => response.text())
   .then(data => {
    console.log("Data length received:", data.length);
-   _("status").innerHTML="<font color=green>Loaded</font>";
+   _("statusEditor").innerHTML="<font color=green>Loaded</font>";
    _('fileContent').value=data;
   })
   .catch(err => {
    console.error(err);
-   _("status").innerHTML="<font color=red>Error loading file.</font>";
+   _("statusEditor").innerHTML="<font color=red>Error loading file.</font>";
   });
 }
 
@@ -335,7 +442,7 @@ function saveFile() {
  // Convert file content into a Blob and split it into chunks
 
  // Define the chunk size in bytes (you can adjust it as needed)
- const chunkSize=111;
+ const chunkSize=1024;
  const contentBlob=new Blob([fileContent], { type: 'text/plain' });
 
  // Use fetch with a POST request to send data in chunks
@@ -362,15 +469,15 @@ function saveFile() {
     // Check if there is more data to send and proceed accordingly
 
     if (end < contentBlob.size) {
-     _('status').innerHTML="<font color=red>Saving...</font> "
+     _("statusEditor").innerHTML="<font color=red>Saving...</font> "
       + end
       + " / "
       + contentBlob.size;
       sendChunk(end, end + chunkSize);
 
     } else {
-    
-      _('status').innerHTML="<font color=red>Closing...</font>";
+
+      _("statusEditor").innerHTML="<font color=red>Closing...</font>";
 
       setTimeout(() => {
       // Wait 3 seconds to allow the ESP to receive last chunk and close file
@@ -385,9 +492,9 @@ function saveFile() {
         xmlhttp.onreadystatechange = () => {
           if (xmlhttp.readyState === XMLHttpRequest.DONE) {
             if (xmlhttp.responseText == "oke") {
-              _('status').innerHTML="<font color=green>File save oke.</font>";
+              _("statusEditor").innerHTML="<font color=green>File save oke.</font>";
             } else {
-              _('status').innerHTML="<font color=red>File save failed.</font>";
+              _("statusEditor").innerHTML="<font color=red>File save failed.</font>";
             }
           }
         }
@@ -399,7 +506,7 @@ function saveFile() {
 
   .catch(err => {
     console.error(err);
-    _('status').innerHTML="<font color=red>Error saving file.</font>";
+    _("statusEditor").innerHTML="<font color=red>Error saving file.</font>";
   });
 
  };
@@ -415,32 +522,9 @@ var littlefswebInfo=false;
 function littlefswebInfoToggle() {
  littlefswebInfo=!littlefswebInfo;
  if (littlefswebInfo) {
-  _('info').innerHTML='<hr>'
-  +'<h3>With LittleFSWeb you can :</h3>'
-  +'Manage (sub)directories and files.<br>'
-  +'(use rename to move between directories.)<br><br>'
-  +'Build a web site with your own html files.<br>'
-  +'- Upload/create any file you want on your web site.<br>'
-  +'- Default in any (sub)directory is index.html.<br>'
-  +'- Edit .html*, .css*, .js*, .svg, .json and .txt files.<br>'
-  +'*allow extra .proc extension to use proc_processor().<br>'
-  +'(see example \'proc_processor.html.proc\'	for that).<br>'
-  +'*or extra .gz extension for gzipped files.<br>'
-  +'(.gz files take precedence over uncompressed files)<br>'
-  +'- You can change /index.html for your own needs<br>'
-  +'and if you want /LittleFSWeb/LittleFSWeb.html too.<br>'
-  +'- Maybe create /LittleFSWeb/LittleFSWeb.html.gz.<br>'
-  +'<br>- And when you want a clean start...Format<br>'
-  +'<h5><font color=red>This is a \'quantum\' computer so...</font></h5>'
-  +'- When a \'huge\' file upload fails...<br>'
-  + 'first upload a small file of about 1KB<br>'
-  + 'This seems to wake up everything.<br><br>'
-  +'- When you copy a \'huge\' file...<br>'
-  +'your server is very, very busy for you<br>'
-  +'...just be patient and wait...<br>'
-  +'<br><hr>'
+  _('info').style.display="block";
  } else {
-  _('info').innerHTML='';
+  _('info').style.display="none";
  }
 }
 
@@ -461,7 +545,7 @@ function logout() {
 // ----- List files functions
 
 function listFiles() {
- editor("hide");
+ switchLayout("LittleFSWeb");
  xmlhttp=new XMLHttpRequest();
  xmlhttp.open("GET", "/LittleFSWeb/listfiles", true);
  xmlhttp.onreadystatechange = () => {
@@ -471,13 +555,12 @@ function listFiles() {
    if (status === 0 || (status >= 200 && status < 400)) {
     // The request has been completed successfully
     console.log(xmlhttp.responseText);
-   _("detailsheader").innerHTML="Files";
    if (xmlhttp.responseText.indexOf("Counts") > 0) {
     // first row for root folder
     var table="<div id='filesdiv' style='height: 400px; overflow-y: auto;'>"
     +"<table id='filestable' style='border: 1px solid black; "
     + "border-collapse: collapse; background-color: #F6F6FA'>"
-    +"<tr>"
+    +"<tr align=\'left\'>"
     +'<td nowrap align=\'center\' width=40>&nbsp;&nbsp;<input type="radio"'
     + 'name="rowSelect" value="row-1">&nbsp;&nbsp;</td>'
     +"<td>/</td>"
@@ -490,7 +573,7 @@ function listFiles() {
      sA=mainArray[i].split(",");
      if (sA[0] == 'LittleFSCopyStatus') {
       if (sA[1] == "Copying") {
-       _("status").innerHTML="Copying";
+       _("statusLittleFSWeb").innerHTML="Copying";
       }
      } else if (sA[0] == 'Counts') {table=table
 // last rows with totals
@@ -531,11 +614,10 @@ function listFiles() {
      }
     }
     table += "</table></div>";
-    _("details").innerHTML=table;
+    _("detailsLittleFSWeb").innerHTML=table;
     _("filesdiv").style.width=(_("filestable").offsetWidth) +"px";
     _("bottombuttons").style.display='block';
 
-    scaleMe("filesdiv")
    }
   } else {
    alert("listFiles request error!");
@@ -548,84 +630,53 @@ function listFiles() {
 // ----- Refresh list function
 
 function refresh() {
-  _("status").innerHTML="";
+  _("statusLittleFSWeb").innerHTML="";
   listFiles();
 }
-
-// ----- Scale function
-
-function scaleMe(div) {
- if (isMobileDevice()) {
-  var divwidth=_(div).style.width;
-  divwidth=divwidth.substring(0, divwidth.length - 2);
-  document.body.style.zoom=Math.round(screen.width / divwidth * 95) / 100 ;
- }
-}
-
-// ----- Event listener orientationchange function
-
-window.addEventListener('orientationchange', function() {scaleMe("filesdiv")});
 
 // ------------------------------------------------------------ Upload functions
 
 var uploadFolder="*";
 
-function showUploadButtonFancy(toFolder) {
- uploadFolder=toFolder + "/";
-
- _("mainbuttons").style.display="none";
- _("bottombuttons").style.display='none';
-
- _("detailsheader").innerHTML="Upload File(s)"
- _("status").innerHTML="";
-
- var uploadform =
- '<form id="upload_form" enctype="multipart/form-data" method="post">'
- + '<input multiple type="file" name="file1" id="file1"'
- + ' onchange="uploadFiles()"><br>'
- + '<progress id="progressBar" value="0" max="100" style="width:300px;">'
- + '</progress>'
- + '<h3 id="status"></h3>'
- + '<p id="loaded_n_total"></p>'
- + '</form>'
- + '<button class="rnd_btn"'
- + 'onclick="_(\'mainbuttons\').style.display=\'block\';listFiles();"'
- + '>Back</button>'
-
- _("details").innerHTML=uploadform;
-}
-
 var nr_files;
 var nr_files_ready;
 let fileQueue=[]; // Queue to store files
 let isUploading=false; // Flag to indicate if an upload is in progress
+let total_bytes;
+let total_bytes_sent;
 
 function uploadFiles() {
- // Set the upload directory
+
+ _("statusUpload").innerHTML="";
+
+ // Set the upload directory to get free file system space
  const xmlhttp=new XMLHttpRequest();
  xmlhttp.open("GET",
   "/LittleFSWeb/setUploadDirectory?name=" + uploadFolder, false);
  xmlhttp.send();
+
  var free_bytes=xmlhttp.responseText;
- var total_bytes=0
+ total_bytes=0
+ total_bytes_sent=0
  nr_files_ready=0;
  // Get the number of files to be uploaded
- nr_files=_("file1").files.length;
+ nr_files=_("filesToUpload").files.length;
  // Add files to the queue
  fileQueue=[];
  var oke=true;
  for (let i=0; i < nr_files; i++) {
-  const file=_("file1").files[i];
+  const file=_("filesToUpload").files[i];
   total_bytes=total_bytes + file.size;
+console.log(total_bytes+" free: "+free_bytes);
   if (file.name.length > 31) {
    alert("Error: Uploads canceled! Filename too long: "
      + file.name.length + " (max 31)\n\nfilename: " + file.name);
-   _("status").innerHTML="<font color=red>Upload Canceled</font>";
+   _("statusUpload").innerHTML="<font color=red>Upload Canceled</font>";
    oke=false;
    break;
   } else if (total_bytes > free_bytes) {
    alert("Error: Uploads canceled! Not enough disk space");
-   _("status").innerHTML="<font color=red>Upload Canceled</font>";
+   _("statusUpload").innerHTML="<font color=red>Upload Canceled</font>";
    oke=false;
    break;
   } else {
@@ -643,6 +694,12 @@ function processQueue() {
   return;
  }
 
+ // Set the upload directory to set folder for this file
+ const xmlhttp=new XMLHttpRequest();
+ xmlhttp.open("GET",
+  "/LittleFSWeb/setUploadDirectory?name=" + uploadFolder, false);
+ xmlhttp.send();
+
  // Indicate that an upload is in progress
  isUploading=true;
  // Retrieve the next file from the queue
@@ -651,7 +708,7 @@ function processQueue() {
 
  // Create a FormData object and add the file
  const formdata=new FormData();
- formdata.append("file1", file);
+ formdata.append("filesToUpload", file);
 
  // Create a new XMLHttpRequest
  const ajax=new XMLHttpRequest();
@@ -676,36 +733,52 @@ function processQueue() {
  pausemillis(1000);
 }
 
-function progressHandler(event, fileName) {
- // Display progress information
- _("loaded_n_total").innerHTML=nr_files_ready + " file(s) ready, Uploaded " + 
-    event.loaded + " bytes of " + event.total + " for file: " + fileName;
- var percent=(event.loaded / event.total) * 100;
- _("progressBar").value=Math.round(percent);
- _("status").innerHTML=Math.round(percent) + "% uploaded... please wait";
+let previousprogress = 0;
 
- // Update status when upload is complete
- if (percent >= 100) {
-  _("status").innerHTML="Please wait, writing file to filesystem";
+function progressHandler(event, fileName) {
+
+ var percentFile=(event.loaded / event.total) * 100;
+
+ total_bytes_sent = total_bytes_sent + (event.loaded - previousprogress);
+ var percentTotal=(total_bytes_sent / total_bytes) * 100;
+
+ // Display progress information
+
+// _("loaded_n_total").innerHTML=nr_files_ready + " file(s) ready, Uploaded " +
+//    event.loaded + " bytes of " + event.total + " for file: " + fileName;
+
+ _("loaded_n_total").innerHTML="Uploading " + fileName + "<br>" +
+    event.loaded + " / " + event.total;
+
+ _("progressTotal").value=Math.round(percentTotal);
+ _("progressFile").value=Math.round(percentFile);
+
+ if (percentFile >= 100) {
+  _("statusUpload").innerHTML="Please wait, writing file to filesystem";
+  previousprogress = 0;
+ } else {
+ _("statusUpload").innerHTML=Math.round(percentTotal) + "% uploaded... please wait";
+  previousprogress = event.loaded
  }
+
 }
 
 function completeHandler(event) {
  nr_files_ready=nr_files_ready + 1;
  if(nr_files_ready == nr_files) {
-  _("mainbuttons").style.display="block";
-  _("status").innerHTML="Upload Complete";
-  _("progressBar").value=0;
-  _("status").innerHTML="Upload "+nr_files+" file(s) complete ";
-  listFiles();
+  _("loaded_n_total").innerHTML="";
+//  _("progressFile").value=0;
+//  _("progressTotal").value=0;
+  _("statusUpload").innerHTML="Upload "+nr_files+" file(s) complete";
+//  listFiles();
  }
 }
 
 function errorHandler(event) {
- _("status").innerHTML="Upload Failed";
+ _("statusUpload").innerHTML="Upload Failed";
 }
 function abortHandler(event) {
- _("status").innerHTML="Upload Aborted";
+ _("statusUpload").innerHTML="Upload Aborted";
 }
 
 // ---------------------------------------------------- Bottom buttons functions
@@ -742,12 +815,11 @@ function doFunction(func) {
     if (selectedRowType == "[Dir]" ) {
      alert ("Can not edit directory")
     } else {
+     switchLayout("LittleFSWebEditor");
      var filetypes=['txt','html','css','js','svg','json','proc'];
      var ftype=selectedRowValue.substring(selectedRowValue.lastIndexOf(".")+1);
      if (filetypes.includes(ftype)) {
-      editor("show");
-      _("detailsheader").innerHTML="Editor";
-      _("status").innerHTML="Loading...";
+      _("statusEditor").innerHTML="Loading...";
       _("filename").value=selectedRowValue;
       getFile();
      } else {
@@ -756,14 +828,20 @@ function doFunction(func) {
     }
    break;
    case "Save File":
-    _("status").innerHTML="Saving...";
+    _("statusEditor").innerHTML="Saving...";
     saveFile();
    break;
    case "Upload":
     if (selectedRowType != "[Dir]" ) {
      alert ("Can not upload in file")
     } else {
-     showUploadButtonFancy(selectedRowValue);
+     uploadFolder=selectedRowValue + "/";
+     _("statusUpload").innerHTML="";
+     _("progressFile").value=0;
+     _("progressTotal").value=0;
+     _("statusUpload").innerHTML="Select file(s) to upload";
+     switchLayout("LittleFSWebUpload");
+//     showUploadButtonFancy(selectedRowValue);
     }
    break;
    case "Copy":
@@ -785,8 +863,8 @@ function doFunction(func) {
      // Set the href attribute to the path of the file to be downloaded
 /*
  NOTE the extra "/LittleFSWebFetch" before the path
- this is handled by LittleFSWeb so the file is not processed
- by the proc_processor in the web server of the main app.
+ this is handled by LittleFSWeb so the file is not processed by
+ the proc_processor in the web server of the main app.
  This would process strings beween % signs and change downloading .proc files.
 */
      a.href="/LittleFSWebFetch"+selectedRowValue;
@@ -840,7 +918,13 @@ function ValidateAndAct(func, parm1) {
  // Create a modal container
  var modal=document.createElement("div");
  modal.style.align="center";
- modal.style.backgroundColor="#aaf";
+ if ((func == "Delete")
+  || (func == "Delete Directory")
+  || (func == "Format") ) {
+  modal.style.backgroundColor="#faa";
+ } else {
+  modal.style.backgroundColor="#aaf";
+ }
  modal.style.padding="20px";
  modal.style.borderRadius="8px";
  modal.style.width="300px"; // Fixed width
@@ -860,14 +944,18 @@ function ValidateAndAct(func, parm1) {
  // Center the title
  title.style.textAlign="center";
  // Center element horizontally within its container
- title.style.margin="0 auto"; 
+ title.style.margin="0 auto";
 
  modal.appendChild(title);
 
  // Create an input field for prompt
  var promptInput=document.createElement("input");
  promptInput.id="promptInput";
- promptInput.type="text";
+ if ((func == "Delete") || (func == "Delete Directory")) {
+  promptInput.type="hidden";
+ } else {
+  promptInput.type="text";
+ }
  if ( (func == "Copy") || (func == "Rename") ) {
   promptInput.placeholder="Type the new name";
  } else if ((func == "New Directory") || (func == "New File") ){
@@ -875,7 +963,7 @@ function ValidateAndAct(func, parm1) {
  } else if (func == "Format") {
   promptInput.placeholder="Type Format to confirm";
  } else { // Delete Directory || Delete
-  promptInput.placeholder="Type the name to confirm"; 
+  promptInput.value="dummy input";
  }
  promptInput.style.width="280px"; // Fixed width
  promptInput.style.marginBottom="10px"; // Adjust the spacing
@@ -891,7 +979,11 @@ function ValidateAndAct(func, parm1) {
  // Create a button to enter new value
  var eButton=document.createElement("button");
  eButton.id="eButton";
- eButton.innerText="Enter";
+ if ((func == "Delete") || (func == "Delete Directory")) {
+  eButton.innerText="Confirm";
+ } else {
+  eButton.innerText="Enter";
+ }
  eButton.style.width="144px"; // Fixed width
  eButton.style.fontSize="14px"; // Adjust the font size
 
@@ -902,12 +994,12 @@ function ValidateAndAct(func, parm1) {
    var urltocall;
    var ok=false;
    if (func == "Format") {
-    ok=( "Format" == prompt ); 
+    ok=( "Format" == prompt );
     urltocall="/LittleFSWeb/format?name=" + prompt + "&action=format";
    }
 
    if (func == "Copy") {
-    ok=true; 
+    ok=true;
     urltocall="/LittleFSWeb/file?name=" + parm1 + "&action=copy@" + prompt;
    }
    if (func == "Rename") {
@@ -916,27 +1008,29 @@ function ValidateAndAct(func, parm1) {
    }
    if (func == "Delete") {
     ok=( parm1 == prompt );
-    urltocall="/LittleFSWeb/file?name=" + prompt + "&action=delete";
+    ok=true;
+    urltocall="/LittleFSWeb/file?name=" + parm1 + "&action=delete";
    }
-   
-   if (func == "New Directory") { 
-    ok=true; 
+
+   if (func == "New Directory") {
+    ok=true;
     urltocall="/LittleFSWeb/dir?name=" + prompt + "&action=newdir";
    }
-   if (func == "New File") { 
-    ok=true; 
+   if (func == "New File") {
+    ok=true;
     urltocall="/LittleFSWeb/file?name=" + prompt + "&action=newfile";
    }
-   if (func == "Delete Directory") { 
+   if (func == "Delete Directory") {
     ok=( parm1 == prompt );
-    urltocall="/LittleFSWeb/dir?name=" + prompt + "&action=deldir";
+    ok=true;
+    urltocall="/LittleFSWeb/dir?name=" + parm1 + "&action=deldir";
    }
    if (ok) {
-    _("status").innerHTML="Please wait...";
+    _("statusLittleFSWeb").innerHTML="Please wait...";
     xmlhttp=new XMLHttpRequest();
     xmlhttp.open("GET", urltocall, false);
     xmlhttp.send();
-    _("status").innerHTML=xmlhttp.responseText;
+    _("statusLittleFSWeb").innerHTML=xmlhttp.responseText;
     listFiles();
    } else {
     alert ("Wrong value: " + prompt + " \<\> " + parm1 );
@@ -963,6 +1057,32 @@ function ValidateAndAct(func, parm1) {
  });
 
 }
+
+function updateScaleFactor() {
+ const vh = window.innerHeight; // Get viewport height
+ const vw = window.innerWidth; // Get viewport width
+ if (vh > vw) { // If in portrait mode (height > width)
+  const scaleFactor = (vh + 200) / 1000; // Calculate scale factor based on height
+  document.documentElement.style.setProperty('--scale-factor', scaleFactor); // Set CSS variable for scale factor
+  document.body.style.overflow = 'hidden'; // Disable scrolling in portrait mode
+  document.body.style.height = '100vh'; // Set body height to 100% of viewport height
+  document.body.style.display = 'block'; // Use block layout
+  document.body.style.justifyContent = 'unset'; // Reset horizontal alignment
+//  document.body.style.alignItems = 'flex-start'; // Align items to the top
+  document.querySelector('.container').classList.remove('scrollable'); // Remove scrolling class from container
+  window.scrollTo(0, 0); // Scroll to the top
+ } else { // If in landscape mode (width >= height)
+  document.documentElement.style.setProperty('--scale-factor', 1); // Reset scale factor to 1 (no scaling)
+  document.body.style.overflow = 'auto'; // Enable scrolling in landscape mode
+  document.body.style.height = 'auto'; // Set body height to auto
+  document.body.style.display = 'flex'; // Use flexbox layout
+  document.body.style.justifyContent = 'center'; // Center content horizontally
+  document.body.style.alignItems = 'center'; // Center content vertically
+  document.querySelector('.container').classList.add('scrollable'); // Add scrolling class to container
+ }
+}
+window.addEventListener('resize', updateScaleFactor); // Update scale factor on window resize
+window.addEventListener('load', updateScaleFactor); // Update scale factor when page loads
 </script>
 </body>
 </html>
